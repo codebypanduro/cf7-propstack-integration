@@ -1,0 +1,108 @@
+Contact Form 7 Sample Form for Propstack Integration
+====================================================
+
+This is a sample Contact Form 7 form that you can use as a starting point for your Propstack integration.
+
+Form Title: Contact Form with Propstack Integration
+
+Form Content:
+-------------
+[select* salutation "Salutation"
+  "Mr"
+  "Ms"
+]
+
+[text* first-name "First Name"]
+
+[text* last-name "Last Name"]
+
+[email* email "Email Address"]
+
+[text company "Company (Optional)"]
+
+[text position "Position (Optional)"]
+
+[tel phone "Phone Number (Optional)"]
+
+[textarea message "Message"]
+
+[checkbox newsletter "Subscribe to newsletter"]
+
+[propstack_enable]
+
+[submit "Send Message"]
+
+Mail Template:
+-------------
+From: [first-name] [last-name] <[email]>
+Subject: New Contact Form Submission from [first-name] [last-name]
+
+Name: [first-name] [last-name]
+Email: [email]
+Company: [company]
+Position: [position]
+Phone: [phone]
+Message: [message]
+Newsletter: [newsletter]
+
+This message was sent from the contact form on [your-site-name] ([url]).
+
+Mail (2) Template:
+------------------
+From: [your-site-name] <[your-email]>
+Subject: Thank you for contacting us
+
+Dear [first-name] [last-name],
+
+Thank you for contacting us. We have received your message and will get back to you as soon as possible.
+
+Best regards,
+[your-site-name] Team
+
+Messages:
+---------
+Your message was sent successfully. Thanks.
+There was an error trying to send your message. Please try again later.
+You must accept the terms and conditions before sending your message.
+The field is required.
+The field is too long.
+The field is too short.
+You must enter a valid email address.
+The URL format is invalid.
+The telephone number is invalid.
+The date format is incorrect.
+The number is smaller than the minimum allowed.
+The number is larger than the maximum allowed.
+The checkbox field is required.
+You made an invalid selection.
+You failed to provide a correct reCAPTCHA value.
+An error occurred during the upload process.
+The file is too big.
+You are not allowed to upload files of this type.
+
+Field Mappings for Propstack:
+----------------------------
+To set up the field mappings in the admin interface:
+
+1. Go to Contact Form 7 > Propstack Integration
+2. Select this form from the dropdown
+3. Map the fields as follows:
+
+   CF7 Field          -> Propstack Field
+   ---------          -> ---------------
+   salutation         -> salutation
+   first-name         -> first_name
+   last-name          -> last_name
+   email              -> email
+   company            -> company
+   position           -> position
+   phone              -> home_phone (or office_phone)
+   message            -> description
+   newsletter         -> newsletter
+
+Notes:
+------
+- The [propstack_enable] tag enables Propstack integration for this form
+- Make sure to replace [your-site-name] and [your-email] with your actual values
+- Adjust the field mappings according to your specific needs
+- Test the form thoroughly before going live 

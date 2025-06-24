@@ -1,0 +1,382 @@
+/* CF7 Propstack Integration Admin Styles */
+
+.cf7-propstack-admin-container {
+  max-width: 1200px;
+  margin: 20px 0;
+}
+
+.cf7-propstack-settings-section,
+.cf7-propstack-mappings-section {
+  background: #fff;
+  border: 1px solid #ccd0d4;
+  border-radius: 4px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.cf7-propstack-settings-section h2,
+.cf7-propstack-mappings-section h2 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+  color: #23282d;
+  font-size: 1.3em;
+}
+
+/* Field Mappings Interface */
+.cf7-propstack-mappings {
+  margin-top: 20px;
+}
+
+.mapping-form {
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.mapping-form h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #23282d;
+}
+
+.mapping-form .form-table th {
+  width: 200px;
+  padding: 15px 10px 15px 0;
+  vertical-align: top;
+  font-weight: 600;
+}
+
+.mapping-form .form-table td {
+  padding: 15px 10px;
+  vertical-align: top;
+}
+
+.mapping-form select {
+  min-width: 250px;
+  max-width: 400px;
+}
+
+.mapping-form .button-primary {
+  margin-top: 10px;
+}
+
+/* Mappings List */
+.mappings-list h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #23282d;
+}
+
+.mappings-list table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.mappings-list th {
+  background: #f1f1f1;
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid #ddd;
+}
+
+.mappings-list td {
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+  vertical-align: middle;
+}
+
+.mappings-list tr:hover {
+  background-color: #f9f9f9;
+}
+
+.mappings-list .button-small {
+  padding: 4px 8px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* Form Editor Integration */
+.cf7-propstack-meta-box {
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 15px;
+  margin: 20px 0;
+}
+
+.cf7-propstack-meta-box h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #23282d;
+}
+
+.cf7-propstack-meta-box label {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.cf7-propstack-meta-box .description {
+  color: #666;
+  font-style: italic;
+  margin-top: 5px;
+}
+
+/* Interactive Elements */
+.cf7-propstack-mappings select:disabled {
+  background-color: #f1f1f1;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.cf7-propstack-mappings select.error {
+  border-color: #dc3232;
+  box-shadow: 0 0 0 1px #dc3232;
+}
+
+.cf7-propstack-mappings select.required-field {
+  border-color: #ffb900;
+  box-shadow: 0 0 0 1px #ffb900;
+}
+
+/* Loading States */
+.cf7-propstack-mappings .loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Help and Info Sections */
+.cf7-propstack-mappings .notice {
+  margin: 0 0 20px 0;
+  padding: 12px;
+  border-left: 4px solid #00a0d2;
+  background: #fff;
+}
+
+.cf7-propstack-mappings .notice-info {
+  border-left-color: #00a0d2;
+}
+
+.cf7-propstack-mappings .notice-success {
+  border-left-color: #46b450;
+}
+
+.cf7-propstack-mappings .notice-warning {
+  border-left-color: #ffb900;
+}
+
+.cf7-propstack-mappings .notice-error {
+  border-left-color: #dc3232;
+}
+
+/* Import/Export Section */
+.cf7-propstack-import-export {
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 20px;
+  margin-top: 30px;
+}
+
+.cf7-propstack-import-export h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #23282d;
+}
+
+.cf7-propstack-import-export p {
+  margin-bottom: 15px;
+  color: #666;
+}
+
+.cf7-propstack-import-export .button {
+  margin-right: 10px;
+}
+
+/* Responsive Design */
+@media (max-width: 782px) {
+  .mapping-form .form-table th,
+  .mapping-form .form-table td {
+    display: block;
+    width: 100%;
+    padding: 10px 0;
+  }
+
+  .mapping-form .form-table th {
+    border-bottom: none;
+    padding-bottom: 5px;
+  }
+
+  .mapping-form select {
+    min-width: 100%;
+    max-width: 100%;
+  }
+
+  .mappings-list table {
+    font-size: 12px;
+  }
+
+  .mappings-list th,
+  .mappings-list td {
+    padding: 8px 6px;
+  }
+
+  .mappings-list .button-small {
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+}
+
+/* Animation Effects */
+.mappings-list tr {
+  transition: background-color 0.2s ease;
+}
+
+.mappings-list tr.fade-out {
+  opacity: 0;
+  transform: translateX(-20px);
+  transition: all 0.3s ease;
+}
+
+/* Status Indicators */
+.cf7-propstack-status {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.cf7-propstack-status.active {
+  background-color: #46b450;
+}
+
+.cf7-propstack-status.inactive {
+  background-color: #dc3232;
+}
+
+.cf7-propstack-status.warning {
+  background-color: #ffb900;
+}
+
+/* Tooltips */
+.cf7-propstack-tooltip {
+  position: relative;
+  cursor: help;
+}
+
+.cf7-propstack-tooltip:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 3px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+}
+
+/* Success/Error Messages */
+.cf7-propstack-message {
+  padding: 10px 15px;
+  margin: 10px 0;
+  border-radius: 3px;
+  border-left: 4px solid;
+}
+
+.cf7-propstack-message.success {
+  background-color: #dff0d8;
+  border-color: #46b450;
+  color: #3c763d;
+}
+
+.cf7-propstack-message.error {
+  background-color: #f2dede;
+  border-color: #dc3232;
+  color: #a94442;
+}
+
+.cf7-propstack-message.warning {
+  background-color: #fcf8e3;
+  border-color: #ffb900;
+  color: #8a6d3b;
+}
+
+/* Keyboard Shortcuts Help */
+.cf7-propstack-shortcuts {
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 15px;
+  margin-top: 20px;
+  font-size: 12px;
+}
+
+.cf7-propstack-shortcuts h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #23282d;
+}
+
+.cf7-propstack-shortcuts kbd {
+  background: #f1f1f1;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+/* Enhanced Button Styles */
+.cf7-propstack-mappings .button {
+  transition: all 0.2s ease;
+}
+
+.cf7-propstack-mappings .button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.cf7-propstack-mappings .button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Form Validation Styles */
+.cf7-propstack-mappings .form-table tr.error th,
+.cf7-propstack-mappings .form-table tr.error td {
+  background-color: #fef7f1;
+}
+
+.cf7-propstack-mappings .form-table tr.error th::before {
+  content: "⚠ ";
+  color: #ffb900;
+}
+
+/* Accessibility Improvements */
+.cf7-propstack-mappings select:focus,
+.cf7-propstack-mappings .button:focus {
+  outline: 2px solid #0073aa;
+  outline-offset: 2px;
+}
+
+.cf7-propstack-mappings .screen-reader-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
