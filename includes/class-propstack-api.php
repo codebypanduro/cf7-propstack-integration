@@ -131,7 +131,7 @@ class CF7_Propstack_API
         $args = array(
             'method' => $method,
             'headers' => array(
-                'Authorization' => 'Bearer ' . $this->api_key,
+                'X-API-KEY' => $this->api_key,
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
             ),
