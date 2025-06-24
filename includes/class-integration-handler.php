@@ -28,9 +28,16 @@ class CF7_Propstack_Integration_Handler
         // Add custom tag for enabling integration per form
         add_action('wpcf7_init', array($this, 'add_custom_tag'));
 
-        // Add form editor integration (meta box)
-        add_action('add_meta_boxes', array($this, 'register_propstack_meta_box'));
+        // Add form editor integration (meta box) - use general hook with screen check
+        add_action('add_meta_boxes', array($this, 'register_propstack_meta_box_general'), 10, 2);
+
         add_action('save_post', array($this, 'save_form_editor_settings'));
+
+        // Add admin styles for meta box
+        add_action('admin_head', array($this, 'add_meta_box_styles'));
+
+        // Add debug notice for testing
+        add_action('admin_notices', array($this, 'debug_notice'));
     }
 
     /**
@@ -229,16 +236,23 @@ class CF7_Propstack_Integration_Handler
     /**
      * Register the Propstack Integration meta box on CF7 forms
      */
-    public function register_propstack_meta_box()
+    public function register_propstack_meta_box_general($post_type, $post)
     {
-        add_meta_box(
-            'cf7-propstack-meta-box',
-            __('Propstack Integration', 'cf7-propstack-integration'),
-            array($this, 'add_form_editor_meta_box'),
-            'wpcf7_contact_form',
-            'side',
-            'default'
-        );
+        // Debug logging
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[CF7 Propstack] add_meta_boxes hook called. Post type: ' . $post_type . ', Post ID: ' . ($post ? $post->ID : 'no post'));
+        }
+
+        if ($post_type === 'wpcf7_contact_form') {
+            add_meta_box(
+                'cf7-propstack-meta-box',
+                __('Propstack Integration', 'cf7-propstack-integration'),
+                array($this, 'add_form_editor_meta_box'),
+                'wpcf7_contact_form',
+                'side',
+                'high'
+            );
+        }
     }
 
     /**
@@ -248,18 +262,19 @@ class CF7_Propstack_Integration_Handler
     {
         $enabled = get_post_meta($post->ID, '_cf7_propstack_enabled', true);
 ?>
-        <div class="cf7-propstack-meta-box">
+        <div class="cf7-propstack-meta-box" style="background-color: #f0f8ff; border: 2px solid #0073aa; padding: 15px; margin: 10px 0;">
+            <h4 style="margin-top: 0; color: #0073aa;"><?php _e('Propstack Integration', 'cf7-propstack-integration'); ?></h4>
             <p>
-                <label>
-                    <input type="checkbox" name="cf7_propstack_enabled" value="1" <?php checked($enabled); ?> />
-                    <?php _e('Enable Propstack integration for this form', 'cf7-propstack-integration'); ?>
+                <label style="display: block; margin-bottom: 10px;">
+                    <input type="checkbox" name="cf7_propstack_enabled" value="1" <?php checked($enabled); ?> style="margin-right: 8px;" />
+                    <strong><?php _e('Enable Propstack integration for this form', 'cf7-propstack-integration'); ?></strong>
                 </label>
             </p>
-            <p class="description">
+            <p class="description" style="font-size: 12px; color: #666; margin-bottom: 0;">
                 <?php _e('When enabled, form submissions will be automatically sent to Propstack CRM.', 'cf7-propstack-integration'); ?>
             </p>
         </div>
-<?php
+    <?php
     }
 
     /**
@@ -307,5 +322,64 @@ class CF7_Propstack_Integration_Handler
         if ($debug_mode) {
             error_log('[CF7 Propstack] SUCCESS: ' . $message);
         }
+    }
+
+    /**
+     * Add admin styles for meta box
+     */
+    public function add_meta_box_styles()
+    {
+    ?>
+        <style>
+            .cf7-propstack-meta-box {
+                padding: 10px;
+                background-color: #fff;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+
+            .cf7-propstack-meta-box p {
+                margin: 0 0 10px;
+            }
+
+            .cf7-propstack-meta-box label {
+                display: block;
+                margin-bottom: 5px;
+            }
+
+            .cf7-propstack-meta-box input[type="checkbox"] {
+                margin-right: 5px;
+            }
+
+            .cf7-propstack-meta-box .description {
+                font-size: 0.8em;
+                color: #666;
+            }
+        </style>
+    <?php
+    }
+
+    /**
+     * Add debug notice for testing
+     */
+    public function debug_notice()
+    {
+        global $post;
+
+        // Only show on Contact Form 7 edit pages
+        if (!$post || $post->post_type !== 'wpcf7_contact_form') {
+            return;
+        }
+
+        // Only show if WP_DEBUG is enabled
+        if (!defined('WP_DEBUG') || !WP_DEBUG) {
+            return;
+        }
+
+    ?>
+        <div class="notice notice-info">
+            <p><?php _e('CF7 Propstack Integration: Meta box should be visible in the sidebar.', 'cf7-propstack-integration'); ?></p>
+        </div>
+<?php
     }
 }
