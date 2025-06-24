@@ -2,7 +2,7 @@
 
 /**
  * Plugin Name: Contact Form 7 - Propstack Integration
- * Plugin URI: https://github.com/your-username/cf7-propstack-integration
+ * Plugin URI: https://github.com/codebypanduro/cf7-propstack-integration
  * Description: Integrate Contact Form 7 with Propstack CRM to automatically create contacts from form submissions.
  * Version: 1.0.0
  * Author: Code by Panduro
@@ -54,6 +54,9 @@ class CF7_Propstack_Integration
             return;
         }
 
+        // Load the API client first
+        require_once CF7_PROPSTACK_PLUGIN_PATH . 'includes/class-propstack-api.php';
+
         // Load admin functionality
         if (is_admin()) {
             require_once CF7_PROPSTACK_PLUGIN_PATH . 'includes/admin/class-admin.php';
@@ -63,9 +66,6 @@ class CF7_Propstack_Integration
         // Load the integration handler
         require_once CF7_PROPSTACK_PLUGIN_PATH . 'includes/class-integration-handler.php';
         new CF7_Propstack_Integration_Handler();
-
-        // Load the API client
-        require_once CF7_PROPSTACK_PLUGIN_PATH . 'includes/class-propstack-api.php';
     }
 
     /**
@@ -104,7 +104,7 @@ class CF7_Propstack_Integration
         // Create default options
         $default_options = array(
             'api_key' => '',
-            'api_url' => 'https://api.propstack.de/v1',
+            'api_url' => 'https://api.propstack.de/v2',
             'debug_mode' => false
         );
 

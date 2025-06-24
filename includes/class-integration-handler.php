@@ -28,8 +28,9 @@ class CF7_Propstack_Integration_Handler
         // Add custom tag for enabling integration per form
         add_action('wpcf7_init', array($this, 'add_custom_tag'));
 
-        // Add form editor integration
-        add_action('wpcf7_admin_init', array($this, 'add_form_editor_integration'));
+        // Add form editor integration (meta box)
+        add_action('add_meta_boxes', array($this, 'register_propstack_meta_box'));
+        add_action('save_post', array($this, 'save_form_editor_settings'));
     }
 
     /**
@@ -226,27 +227,28 @@ class CF7_Propstack_Integration_Handler
     }
 
     /**
-     * Add form editor integration
+     * Register the Propstack Integration meta box on CF7 forms
      */
-    public function add_form_editor_integration()
+    public function register_propstack_meta_box()
     {
-        add_action('wpcf7_admin_after_form', array($this, 'add_form_editor_meta_box'));
-        add_action('save_post', array($this, 'save_form_editor_settings'));
+        add_meta_box(
+            'cf7-propstack-meta-box',
+            __('Propstack Integration', 'cf7-propstack-integration'),
+            array($this, 'add_form_editor_meta_box'),
+            'wpcf7_contact_form',
+            'side',
+            'default'
+        );
     }
 
     /**
-     * Add meta box to form editor
+     * Output the meta box content
      */
     public function add_form_editor_meta_box($post)
     {
-        if ($post->post_type !== 'wpcf7_contact_form') {
-            return;
-        }
-
         $enabled = get_post_meta($post->ID, '_cf7_propstack_enabled', true);
 ?>
         <div class="cf7-propstack-meta-box">
-            <h3><?php _e('Propstack Integration', 'cf7-propstack-integration'); ?></h3>
             <p>
                 <label>
                     <input type="checkbox" name="cf7_propstack_enabled" value="1" <?php checked($enabled); ?> />

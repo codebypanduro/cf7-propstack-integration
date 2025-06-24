@@ -33,7 +33,7 @@ class CF7_Propstack_Admin
         add_submenu_page(
             'wpcf7',
             __('Propstack Integration', 'cf7-propstack-integration'),
-            __('Propstack Integration', 'cf7-propstack-integration'),
+            __('Propstack', 'cf7-propstack-integration'),
             'manage_options',
             'cf7-propstack-settings',
             array($this, 'settings_page')
@@ -281,8 +281,9 @@ class CF7_Propstack_Admin
      */
     private function get_form_title($form_id)
     {
-        $form = WPCF7_ContactForm::find($form_id);
-        return $form ? $form->title() : $form_id;
+        $forms = WPCF7_ContactForm::find($form_id);
+        $form = is_array($forms) ? reset($forms) : $forms;
+        return ($form && is_object($form)) ? $form->title() : $form_id;
     }
 
     /**
@@ -402,13 +403,27 @@ class CF7_Propstack_Admin
             wp_send_json_error(__('Form ID is required.', 'cf7-propstack-integration'));
         }
 
-        $form = WPCF7_ContactForm::find($form_id);
-        if (!$form) {
+        $forms = WPCF7_ContactForm::find($form_id);
+        $form = is_array($forms) ? reset($forms) : $forms;
+        if (!$form || !is_object($form)) {
             wp_send_json_error(__('Form not found.', 'cf7-propstack-integration'));
         }
 
         $form_content = $form->prop('form');
         $fields = $this->extract_form_fields($form_content);
+
+        // Remove already-mapped fields for this form
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'cf7_propstack_mappings';
+        $mapped = $wpdb->get_col($wpdb->prepare(
+            "SELECT cf7_field FROM $table_name WHERE form_id = %s",
+            $form_id
+        ));
+        if (!empty($mapped)) {
+            foreach ($mapped as $mapped_field) {
+                unset($fields[$mapped_field]);
+            }
+        }
 
         if (empty($fields)) {
             wp_send_json_error(__('No fields found in this form.', 'cf7-propstack-integration'));
@@ -429,22 +444,18 @@ class CF7_Propstack_Admin
 
         if (!empty($matches[1])) {
             foreach ($matches[1] as $tag) {
-                // Parse the tag
-                $tag_parts = explode(' ', $tag);
-                $field_type = $tag_parts[0];
-                $field_name = '';
-
-                // Extract field name
-                foreach ($tag_parts as $part) {
-                    if (strpos($part, 'name=') === 0) {
-                        $field_name = str_replace('name=', '', $part);
-                        break;
+                // Split the tag by spaces, the second part is usually the field name
+                $tag_parts = preg_split('/\s+/', trim($tag));
+                if (count($tag_parts) > 1) {
+                    $field_type = $tag_parts[0];
+                    $field_name = $tag_parts[1];
+                    // Remove asterisk for required fields
+                    $field_type = rtrim($field_type, '*');
+                    // Only add if not a submit or special tag
+                    if (!in_array($field_type, ['submit', 'propstack_enable'])) {
+                        $label = $this->get_field_label($field_name, $field_type);
+                        $fields[$field_name] = $label;
                     }
-                }
-
-                if (!empty($field_name)) {
-                    $field_label = $this->get_field_label($field_name, $field_type);
-                    $fields[$field_name] = $field_label;
                 }
             }
         }
