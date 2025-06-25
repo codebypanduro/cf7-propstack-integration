@@ -220,34 +220,4 @@ jQuery(document).ready(function ($) {
       "</p>" +
       "</div>"
   );
-
-  // Add export/import functionality placeholder
-  $(".cf7-propstack-mappings").append(
-    '<div class="cf7-propstack-import-export">' +
-      "<h3>" +
-      cf7PropstackAdmin.strings.importExport +
-      "</h3>" +
-      "<p>" +
-      cf7PropstackAdmin.strings.importExportText +
-      "</p>" +
-      '<button type="button" class="button" id="export_mappings">' +
-      cf7PropstackAdmin.strings.exportMappings +
-      "</button> " +
-      '<button type="button" class="button" id="import_mappings">' +
-      cf7PropstackAdmin.strings.importMappings +
-      "</button>" +
-      "</div>"
-  );
-
-  // Handle export
-  $("#export_mappings").on("click", function () {
-    // This would need a server-side handler to generate the export
-    alert(cf7PropstackAdmin.strings.exportFeature + " - Coming soon!");
-  });
-
-  // Handle import
-  $("#import_mappings").on("click", function () {
-    // This would need a file upload handler
-    alert(cf7PropstackAdmin.strings.importFeature + " - Coming soon!");
-  });
 });

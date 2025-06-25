@@ -117,7 +117,6 @@ class CF7_Propstack_Integration
         // Create default options
         $default_options = array(
             'api_key' => '',
-            'api_url' => 'https://api.propstack.de/v1',
             'debug_mode' => false
         );
 
