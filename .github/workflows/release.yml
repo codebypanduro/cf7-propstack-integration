@@ -42,10 +42,9 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-
           git add cf7-propstack-integration.php
           git commit -m "Bump version to ${{ steps.version.outputs.version }} [skip ci]"
-          git push
+          git push origin HEAD:main
 
       - name: Create plugin zip
         run: |
