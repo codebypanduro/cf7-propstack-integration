@@ -29,17 +29,21 @@ jobs:
       - name: Update plugin version
         run: |
           PLUGIN_FILE="cf7-propstack-integration.php"
-
-          # Update version in plugin file
-          sed -i "s/Version: [0-9]\+\.[0-9]\+\.[0-9]\+/Version: ${{ steps.version.outputs.version }}/" "$PLUGIN_FILE"
-
+          VERSION="${{ steps.version.outputs.version }}"
+          # Update header version
+          sed -i "s/Version: [0-9]\+\.[0-9]\+\.[0-9]\+/Version: $VERSION/" "$PLUGIN_FILE"
+          # Update CF7_PROPSTACK_VERSION constant
+          sed -i "s/define('CF7_PROPSTACK_VERSION', '[^']*');/define('CF7_PROPSTACK_VERSION', '$VERSION');/" "$PLUGIN_FILE"
           # Verify version was updated
-          if ! grep -q "Version: ${{ steps.version.outputs.version }}" "$PLUGIN_FILE"; then
-            echo "Error: Failed to update version in plugin file"
+          if ! grep -q "Version: $VERSION" "$PLUGIN_FILE"; then
+            echo "Error: Failed to update header version in plugin file"
             exit 1
           fi
-
-          echo "Version updated to ${{ steps.version.outputs.version }}"
+          if ! grep -q "define('CF7_PROPSTACK_VERSION', '$VERSION');" "$PLUGIN_FILE"; then
+            echo "Error: Failed to update CF7_PROPSTACK_VERSION in plugin file"
+            exit 1
+          fi
+          echo "Version updated to $VERSION"
 
       - name: Commit and push version update
         run: |
@@ -54,8 +58,9 @@ jobs:
           # Create a temporary directory for the plugin
           mkdir -p temp/cf7-propstack-integration
 
-          # Copy plugin files (excluding development files)
-          cp -r * temp/cf7-propstack-integration/
+          # Copy plugin files (excluding development files and temp itself)
+          shopt -s extglob
+          cp -r !(temp) temp/cf7-propstack-integration/
 
           # Remove development files
           rm -rf temp/cf7-propstack-integration/.git
