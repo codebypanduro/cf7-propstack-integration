@@ -175,30 +175,6 @@
   border-left-color: #dc3232;
 }
 
-/* Import/Export Section */
-.cf7-propstack-import-export {
-  background: #f9f9f9;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 20px;
-  margin-top: 30px;
-}
-
-.cf7-propstack-import-export h3 {
-  margin-top: 0;
-  margin-bottom: 10px;
-  color: #23282d;
-}
-
-.cf7-propstack-import-export p {
-  margin-bottom: 15px;
-  color: #666;
-}
-
-.cf7-propstack-import-export .button {
-  margin-right: 10px;
-}
-
 /* Responsive Design */
 @media (max-width: 782px) {
   .mapping-form .form-table th,

@@ -23,7 +23,7 @@ class CF7_Propstack_API
     {
         $options = get_option('cf7_propstack_options');
         $this->api_key = isset($options['api_key']) ? $options['api_key'] : '';
-        $this->api_url = isset($options['api_url']) ? $options['api_url'] : 'https://api.propstack.de/v1';
+        $this->api_url = 'https://api.propstack.de/v1';
         $this->debug_mode = isset($options['debug_mode']) ? $options['debug_mode'] : false;
     }
 
@@ -131,7 +131,7 @@ class CF7_Propstack_API
         $args = array(
             'method' => $method,
             'headers' => array(
-                'Authorization' => 'Bearer ' . $this->api_key,
+                'X-API-KEY' => $this->api_key,
                 'Content-Type' => 'application/json',
                 'Accept' => 'application/json',
             ),

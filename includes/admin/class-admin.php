@@ -63,14 +63,6 @@ class CF7_Propstack_Admin
         );
 
         add_settings_field(
-            'api_url',
-            __('API URL', 'cf7-propstack-integration'),
-            array($this, 'api_url_field_callback'),
-            'cf7_propstack_settings',
-            'cf7_propstack_general'
-        );
-
-        add_settings_field(
             'debug_mode',
             __('Debug Mode', 'cf7-propstack-integration'),
             array($this, 'debug_mode_field_callback'),
@@ -87,7 +79,6 @@ class CF7_Propstack_Admin
         $sanitized = array();
 
         $sanitized['api_key'] = sanitize_text_field($input['api_key']);
-        $sanitized['api_url'] = esc_url_raw($input['api_url']);
         $sanitized['debug_mode'] = isset($input['debug_mode']) ? true : false;
 
         return $sanitized;
@@ -111,19 +102,6 @@ class CF7_Propstack_Admin
 ?>
         <input type="text" id="api_key" name="cf7_propstack_options[api_key]" value="<?php echo esc_attr($api_key); ?>" class="regular-text" />
         <p class="description"><?php _e('Enter your Propstack API key.', 'cf7-propstack-integration'); ?></p>
-    <?php
-    }
-
-    /**
-     * API URL field callback
-     */
-    public function api_url_field_callback()
-    {
-        $options = get_option('cf7_propstack_options');
-        $api_url = isset($options['api_url']) ? $options['api_url'] : 'https://api.propstack.de/v1';
-    ?>
-        <input type="url" id="api_url" name="cf7_propstack_options[api_url]" value="<?php echo esc_attr($api_url); ?>" class="regular-text" />
-        <p class="description"><?php _e('Propstack API URL (default: https://api.propstack.de/v1)', 'cf7-propstack-integration'); ?></p>
     <?php
     }
 
@@ -546,12 +524,6 @@ class CF7_Propstack_Admin
                 'pleaseFillAllFields' => __('Please fill in all required fields.', 'cf7-propstack-integration'),
                 'helpTitle' => __('How to use field mappings:', 'cf7-propstack-integration'),
                 'helpText' => __('Select a Contact Form 7 form, choose the form field you want to map, and select the corresponding Propstack field. This will automatically send form data to Propstack when the form is submitted.', 'cf7-propstack-integration'),
-                'importExport' => __('Import/Export Mappings', 'cf7-propstack-integration'),
-                'importExportText' => __('Export your current field mappings or import mappings from another installation.', 'cf7-propstack-integration'),
-                'exportMappings' => __('Export Mappings', 'cf7-propstack-integration'),
-                'importMappings' => __('Import Mappings', 'cf7-propstack-integration'),
-                'exportFeature' => __('Export feature', 'cf7-propstack-integration'),
-                'importFeature' => __('Import feature', 'cf7-propstack-integration'),
             )
         ));
 

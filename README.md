@@ -11,11 +11,12 @@ This plugin extends Contact Form 7 functionality by automatically sending form s
 - **Easy Field Mapping**: Visual interface to map CF7 form fields to Propstack contact fields
 - **Automatic Contact Creation**: Creates new contacts in Propstack when forms are submitted
 - **Contact Updates**: Updates existing contacts if they already exist (based on email)
-- **Form-Specific Integration**: Enable/disable integration per form
+- **Form-Specific Integration**: Enable/disable integration per form using CF7's native panel system
 - **Debug Logging**: Comprehensive logging for troubleshooting
 - **Data Validation**: Validates data before sending to Propstack
 - **Data Sanitization**: Ensures data security and compliance
 - **Responsive Admin Interface**: Modern, mobile-friendly settings page
+- **Native CF7 Integration**: Uses Contact Form 7's built-in panel system for seamless integration
 
 ## Requirements
 
@@ -48,20 +49,30 @@ This plugin extends Contact Form 7 functionality by automatically sending form s
 4. Click "Add Mapping"
 5. Repeat for all fields you want to sync
 
-### 3. Enable Integration
+### 3. Enable Integration Per Form
 
-You can enable the integration in two ways:
+The integration can be enabled for individual forms using Contact Form 7's native panel system:
 
-**Option A: Per Form Setting**
+1. **Edit a Contact Form 7 form**
+2. **Look for the "Propstack Integration" tab** in the form editor (alongside Form, Mail, Messages, and Additional Settings)
+3. **Check the "Enable Propstack integration for this form" checkbox**
+4. **Click "Manage Field Mappings"** to configure field mappings for this form
+5. **Save the form**
 
-- Edit a Contact Form 7 form
-- Check the "Enable Propstack integration" checkbox
-- Save the form
+The Propstack Integration panel provides:
 
-**Option B: Form Tag**
+- A checkbox to enable/disable integration for the specific form
+- Information about field mappings
+- A direct link to manage field mappings in the plugin settings
 
-- Add `[propstack_enable]` to your form content
-- Save the form
+### Alternative: Form Tag Method
+
+You can also enable integration by adding the `[propstack_enable]` tag to your form content:
+
+```html
+[text* first-name "First Name"] [email* email "Email Address"]
+[propstack_enable] [submit "Send Message"]
+```
 
 ## Supported Propstack Fields
 
@@ -84,21 +95,32 @@ The plugin automatically transforms certain field values:
 
 ## Usage Examples
 
-### Basic Contact Form
+### Basic Contact Form with Panel Integration
 
 ```html
 [text* first-name "First Name"] [text* last-name "Last Name"] [email* email
 "Email Address"] [text phone "Phone Number"] [textarea message "Message"]
-[propstack_enable] [submit "Send Message"]
+[submit "Send Message"]
 ```
+
+_Note: Enable integration via the "Propstack Integration" panel in the form editor_
 
 ### Advanced Form with Company Information
 
 ```html
-[select* salutation "Salutation" "Mr" "Ms" ] [text* first-name "First Name"]
+[select* salutation "Salutation" "Mr" "Ms"] [text* first-name "First Name"]
 [text* last-name "Last Name"] [email* email "Email Address"] [text company
 "Company"] [text position "Position"] [text phone "Phone Number"] [checkbox
-newsletter "Subscribe to newsletter"] [propstack_enable] [submit "Submit"]
+newsletter "Subscribe to newsletter"] [submit "Submit"]
+```
+
+_Note: Enable integration via the "Propstack Integration" panel in the form editor_
+
+### Form Tag Method (Legacy)
+
+```html
+[text* first-name "First Name"] [email* email "Email Address"]
+[propstack_enable] [submit "Send Message"]
 ```
 
 ## Troubleshooting
@@ -113,14 +135,16 @@ Enable debug mode in the plugin settings to log API requests and responses. Chec
 2. **"No field mappings found"**: Create field mappings for your form in the admin interface
 3. **"Validation errors"**: Check that required fields (email, first_name or last_name) are mapped
 4. **"API Error"**: Verify your API key and check Propstack API status
+5. **"Propstack Integration panel not visible"**: Ensure you're editing a Contact Form 7 form and the plugin is activated
 
 ### Testing
 
-1. Create a test form with the `[propstack_enable]` tag
-2. Map at least the email field
-3. Submit the form
-4. Check your Propstack CRM for the new contact
-5. Review debug logs if issues occur
+1. Create a test form
+2. Enable integration via the "Propstack Integration" panel
+3. Map at least the email field in the plugin settings
+4. Submit the form
+5. Check your Propstack CRM for the new contact
+6. Review debug logs if issues occur
 
 ## API Reference
 
@@ -137,6 +161,7 @@ The plugin uses the Propstack API endpoints:
 - API keys are stored securely in WordPress options
 - Nonce verification for all AJAX requests
 - User capability checks for admin functions
+- Integration settings stored as CF7 form properties
 
 ## Support
 
@@ -146,8 +171,17 @@ For support and feature requests, please:
 2. Verify your Propstack API key and permissions
 3. Ensure Contact Form 7 is properly configured
 4. Test with a simple form first
+5. Verify the "Propstack Integration" panel is visible in the form editor
 
 ## Changelog
+
+### Version 1.1.0
+
+- **NEW**: Native Contact Form 7 panel integration
+- **IMPROVED**: Replaced meta box approach with CF7's built-in panel system
+- **ENHANCED**: Better user experience with integrated form editor interface
+- **UPDATED**: Form-specific settings now stored as CF7 properties
+- **FIXED**: Compatibility issues with Contact Form 7's custom editor
 
 ### Version 1.0.0
 
@@ -167,3 +201,4 @@ This plugin is licensed under the GPL v2 or later.
 - Built for Contact Form 7 integration
 - Uses Propstack API for CRM functionality
 - Follows WordPress coding standards
+- Implements Contact Form 7's native panel system

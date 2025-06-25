@@ -63,7 +63,20 @@ class CF7_Propstack_Integration
             new CF7_Propstack_Admin();
         }
 
-        // Load the integration handler
+        // Load the integration handler after CF7 is fully loaded
+        add_action('wpcf7_init', array($this, 'load_integration_handler'));
+    }
+
+    /**
+     * Load the integration handler
+     */
+    public function load_integration_handler()
+    {
+        // Debug logging
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[CF7 Propstack] Loading integration handler');
+        }
+
         require_once CF7_PROPSTACK_PLUGIN_PATH . 'includes/class-integration-handler.php';
         new CF7_Propstack_Integration_Handler();
     }
@@ -104,7 +117,6 @@ class CF7_Propstack_Integration
         // Create default options
         $default_options = array(
             'api_key' => '',
-            'api_url' => 'https://api.propstack.de/v2',
             'debug_mode' => false
         );
 
