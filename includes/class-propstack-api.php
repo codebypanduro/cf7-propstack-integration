@@ -39,9 +39,12 @@ class CF7_Propstack_API
 
         $endpoint = $this->api_url . '/contacts';
 
+        // Custom fields are included in partial_custom_fields as per Propstack documentation
         $request_data = array(
             'client' => $contact_data
         );
+
+        $this->log_error('Creating contact with data: ' . json_encode($request_data));
 
         $response = $this->make_request('POST', $endpoint, $request_data);
 
@@ -66,9 +69,12 @@ class CF7_Propstack_API
 
         $endpoint = $this->api_url . '/contacts/' . $contact_id;
 
+        // Custom fields are included in partial_custom_fields as per Propstack documentation
         $request_data = array(
             'client' => $contact_data
         );
+
+        $this->log_error('Updating contact ' . $contact_id . ' with data: ' . json_encode($request_data));
 
         $response = $this->make_request('PUT', $endpoint, $request_data);
 
@@ -120,6 +126,52 @@ class CF7_Propstack_API
             return $response;
         }
 
+        return array();
+    }
+
+    /**
+     * Get custom fields for contacts
+     */
+    public function get_custom_fields()
+    {
+        if (empty($this->api_key)) {
+            $this->log_error('API key not configured');
+            return array();
+        }
+
+        // Use the correct endpoint from Propstack documentation
+        $endpoint = $this->api_url . '/custom_field_groups?entity=for_clients';
+        $this->log_error('Fetching custom fields from: ' . $endpoint);
+
+        $response = $this->make_request('GET', $endpoint);
+
+        $this->log_error('Custom fields response: ' . json_encode($response));
+
+        if ($response && isset($response['data']) && is_array($response['data'])) {
+            $custom_fields = array();
+
+            // Process each custom field group
+            foreach ($response['data'] as $group) {
+                if (isset($group['custom_fields']) && is_array($group['custom_fields'])) {
+                    foreach ($group['custom_fields'] as $field) {
+                        if (isset($field['name']) && isset($field['pretty_name'])) {
+                            $custom_fields[] = array(
+                                'name' => $field['name'],
+                                'label' => $field['pretty_name'],
+                                'type' => isset($field['field_type']) ? $field['field_type'] : 'String',
+                                'id' => isset($field['id']) ? $field['id'] : null,
+                                'options' => isset($field['custom_options']) ? $field['custom_options'] : array()
+                            );
+                        }
+                    }
+                }
+            }
+
+            $this->log_error('Processed custom fields: ' . count($custom_fields));
+            return $custom_fields;
+        }
+
+        $this->log_error('No custom fields returned or invalid response');
         return array();
     }
 
@@ -328,6 +380,14 @@ class CF7_Propstack_API
         // Date fields
         if (isset($data['dob']) && !empty($data['dob'])) {
             $sanitized['dob'] = sanitize_text_field($data['dob']);
+        }
+
+        // Preserve custom_fields if they exist
+        if (isset($data['custom_fields']) && is_array($data['custom_fields'])) {
+            $sanitized['custom_fields'] = array();
+            foreach ($data['custom_fields'] as $field_name => $field_value) {
+                $sanitized['custom_fields'][sanitize_text_field($field_name)] = sanitize_text_field($field_value);
+            }
         }
 
         return $sanitized;

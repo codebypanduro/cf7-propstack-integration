@@ -128,6 +128,99 @@ jQuery(document).ready(function ($) {
     });
   });
 
+  // Handle refresh custom fields button
+  $("#refresh_custom_fields").on("click", function () {
+    var button = $(this);
+    var originalText = button.text();
+    var propstackFieldSelect = $("#propstack_field_select");
+
+    // Show loading state
+    button
+      .text(cf7PropstackAdmin.strings.refreshing || "Refreshing...")
+      .prop("disabled", true);
+    propstackFieldSelect.prop("disabled", true);
+
+    $.ajax({
+      url: cf7PropstackAdmin.ajaxUrl,
+      type: "POST",
+      data: {
+        action: "refresh_custom_fields",
+        nonce: cf7PropstackAdmin.nonce,
+      },
+      success: function (response) {
+        if (response.success) {
+          // Update the dropdown with new fields
+          var currentValue = propstackFieldSelect.val();
+          var options =
+            '<option value="">' +
+            (cf7PropstackAdmin.strings.selectField || "Select a field") +
+            "</option>";
+
+          // Add standard fields (these are hardcoded in PHP)
+          var standardFields = {
+            first_name: "First Name",
+            last_name: "Last Name",
+            email: "Email",
+            salutation: "Salutation",
+            academic_title: "Academic Title",
+            company: "Company",
+            position: "Position",
+            home_phone: "Home Phone",
+            home_cell: "Home Cell",
+            office_phone: "Office Phone",
+            office_cell: "Office Cell",
+            description: "Description",
+            language: "Language",
+            newsletter: "Newsletter",
+            accept_contact: "Accept Contact",
+            client_source_id: "Client Source ID",
+            client_status_id: "Client Status ID",
+          };
+
+          // Add standard fields
+          $.each(standardFields, function (field, label) {
+            options += '<option value="' + field + '">' + label + "</option>";
+          });
+
+          // Add custom fields from response
+          if (response.data && response.data.fields) {
+            $.each(response.data.fields, function (field, label) {
+              options += '<option value="' + field + '">' + label + "</option>";
+            });
+          }
+
+          propstackFieldSelect.html(options);
+
+          // Restore previous selection if it still exists
+          if (
+            currentValue &&
+            propstackFieldSelect.find('option[value="' + currentValue + '"]')
+              .length
+          ) {
+            propstackFieldSelect.val(currentValue);
+          }
+
+          alert(
+            response.data.message || "Custom fields refreshed successfully!"
+          );
+        } else {
+          alert(response.data || "Failed to refresh custom fields");
+        }
+      },
+      error: function () {
+        alert(
+          cf7PropstackAdmin.strings.errorRefreshingFields ||
+            "Error refreshing custom fields"
+        );
+      },
+      complete: function () {
+        // Restore button state
+        button.text(originalText).prop("disabled", false);
+        propstackFieldSelect.prop("disabled", false);
+      },
+    });
+  });
+
   // Add some styling improvements
   $(".cf7-propstack-admin-container").addClass("cf7-propstack-styled");
 

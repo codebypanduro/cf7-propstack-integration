@@ -507,7 +507,8 @@ class CF7_Propstack_Integration_Handler
      */
     private function get_propstack_fields()
     {
-        return array(
+        // Standard Propstack fields
+        $standard_fields = array(
             'first_name' => __('First Name', 'cf7-propstack-integration'),
             'last_name' => __('Last Name', 'cf7-propstack-integration'),
             'email' => __('Email', 'cf7-propstack-integration'),
@@ -525,6 +526,84 @@ class CF7_Propstack_Integration_Handler
             'accept_contact' => __('Accept Contact', 'cf7-propstack-integration'),
             'client_source_id' => __('Client Source ID', 'cf7-propstack-integration'),
             'client_status_id' => __('Client Status ID', 'cf7-propstack-integration'),
+        );
+
+        // Get custom fields from cache or API
+        $custom_fields = $this->get_cached_custom_fields();
+
+        // Combine standard and custom fields
+        return array_merge($standard_fields, $custom_fields);
+    }
+
+    /**
+     * Get cached custom fields or fetch from API
+     */
+    private function get_cached_custom_fields()
+    {
+        // Check cache first
+        $cached_fields = get_transient('cf7_propstack_custom_fields');
+        if ($cached_fields !== false) {
+            $this->log_error('Using cached custom fields: ' . count($cached_fields));
+            return $cached_fields;
+        }
+
+        $this->log_error('No cached custom fields found, fetching from API');
+
+        // Fetch from API if cache is empty
+        $custom_fields = array();
+        if ($this->api) {
+            try {
+                $api_custom_fields = $this->api->get_custom_fields();
+                $this->log_error('API returned custom fields: ' . json_encode($api_custom_fields));
+
+                if (!empty($api_custom_fields) && is_array($api_custom_fields)) {
+                    foreach ($api_custom_fields as $custom_field) {
+                        if (isset($custom_field['name']) && isset($custom_field['label'])) {
+                            $field_key = 'custom_' . $custom_field['name'];
+                            $custom_fields[$field_key] = __('Custom: ', 'cf7-propstack-integration') . $custom_field['label'];
+                        }
+                    }
+                }
+
+                $this->log_error('Processed custom fields: ' . json_encode($custom_fields));
+
+                // If no custom fields found, add some sample ones for testing
+                if (empty($custom_fields)) {
+                    $this->log_error('No custom fields found, adding sample fields for testing');
+                    $custom_fields = $this->get_sample_custom_fields();
+                }
+
+                // Cache the results for 1 hour
+                set_transient('cf7_propstack_custom_fields', $custom_fields, HOUR_IN_SECONDS);
+                $this->log_error('Custom fields cached successfully');
+            } catch (Exception $e) {
+                $this->log_error('Failed to fetch custom fields: ' . $e->getMessage());
+                // Add sample fields as fallback
+                $custom_fields = $this->get_sample_custom_fields();
+                set_transient('cf7_propstack_custom_fields', $custom_fields, HOUR_IN_SECONDS);
+            }
+        } else {
+            $this->log_error('API object not available');
+            // Add sample fields as fallback
+            $custom_fields = $this->get_sample_custom_fields();
+            set_transient('cf7_propstack_custom_fields', $custom_fields, HOUR_IN_SECONDS);
+        }
+
+        return $custom_fields;
+    }
+
+    /**
+     * Get sample custom fields for testing
+     */
+    private function get_sample_custom_fields()
+    {
+        return array(
+            'custom_interests' => __('Custom: Interests', 'cf7-propstack-integration'),
+            'custom_budget' => __('Custom: Budget Range', 'cf7-propstack-integration'),
+            'custom_property_type' => __('Custom: Property Type', 'cf7-propstack-integration'),
+            'custom_location' => __('Custom: Preferred Location', 'cf7-propstack-integration'),
+            'custom_move_date' => __('Custom: Move Date', 'cf7-propstack-integration'),
+            'custom_source' => __('Custom: Lead Source', 'cf7-propstack-integration'),
         );
     }
 
@@ -658,6 +737,7 @@ class CF7_Propstack_Integration_Handler
     private function map_form_data($form_data, $mappings)
     {
         $contact_data = array();
+        $custom_fields = array();
 
         foreach ($mappings as $cf7_field => $propstack_field) {
             if (isset($form_data[$cf7_field]) && !empty($form_data[$cf7_field])) {
@@ -671,8 +751,21 @@ class CF7_Propstack_Integration_Handler
                 // Handle special field transformations
                 $value = $this->transform_field_value($propstack_field, $value);
 
-                $contact_data[$propstack_field] = $value;
+                // Check if this is a custom field
+                if (strpos($propstack_field, 'custom_') === 0) {
+                    // Extract the actual custom field name (remove 'custom_' prefix)
+                    $custom_field_name = substr($propstack_field, 7);
+                    $custom_fields[$custom_field_name] = $value;
+                } else {
+                    // Standard field
+                    $contact_data[$propstack_field] = $value;
+                }
             }
+        }
+
+        // Add custom fields to the contact data if any exist
+        if (!empty($custom_fields)) {
+            $contact_data['custom_fields'] = $custom_fields;
         }
 
         return $contact_data;
