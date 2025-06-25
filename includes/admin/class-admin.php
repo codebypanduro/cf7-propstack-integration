@@ -22,6 +22,7 @@ class CF7_Propstack_Admin
         add_action('wp_ajax_save_field_mapping', array($this, 'save_field_mapping'));
         add_action('wp_ajax_delete_field_mapping', array($this, 'delete_field_mapping'));
         add_action('wp_ajax_get_cf7_fields', array($this, 'get_cf7_fields'));
+        add_action('wp_ajax_refresh_custom_fields', array($this, 'refresh_custom_fields'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
     }
 
@@ -199,6 +200,10 @@ class CF7_Propstack_Admin
                                     <option value="<?php echo esc_attr($field); ?>"><?php echo esc_html($label); ?></option>
                                 <?php endforeach; ?>
                             </select>
+                            <button type="button" id="refresh_custom_fields" class="button button-secondary" style="margin-left: 10px;">
+                                <?php _e('Refresh Custom Fields', 'cf7-propstack-integration'); ?>
+                            </button>
+                            <p class="description"><?php _e('Click to refresh custom fields from Propstack API', 'cf7-propstack-integration'); ?></p>
                         </td>
                     </tr>
                 </table>
@@ -279,7 +284,8 @@ class CF7_Propstack_Admin
      */
     private function get_propstack_fields()
     {
-        return array(
+        // Standard Propstack fields
+        $standard_fields = array(
             'first_name' => __('First Name', 'cf7-propstack-integration'),
             'last_name' => __('Last Name', 'cf7-propstack-integration'),
             'email' => __('Email', 'cf7-propstack-integration'),
@@ -297,6 +303,76 @@ class CF7_Propstack_Admin
             'accept_contact' => __('Accept Contact', 'cf7-propstack-integration'),
             'client_source_id' => __('Client Source ID', 'cf7-propstack-integration'),
             'client_status_id' => __('Client Status ID', 'cf7-propstack-integration'),
+        );
+
+        // Get custom fields from cache or API
+        $custom_fields = $this->get_cached_custom_fields();
+
+        // Combine standard and custom fields
+        return array_merge($standard_fields, $custom_fields);
+    }
+
+    /**
+     * Get cached custom fields or fetch from API
+     */
+    private function get_cached_custom_fields()
+    {
+        // Check cache first
+        $cached_fields = get_transient('cf7_propstack_custom_fields');
+        if ($cached_fields !== false) {
+            return $cached_fields;
+        }
+
+        // Fetch from API if cache is empty
+        $custom_fields = array();
+        if (class_exists('CF7_Propstack_API')) {
+            try {
+                $api = new CF7_Propstack_API();
+                $api_custom_fields = $api->get_custom_fields();
+                if (!empty($api_custom_fields) && is_array($api_custom_fields)) {
+                    foreach ($api_custom_fields as $custom_field) {
+                        if (isset($custom_field['name']) && isset($custom_field['label'])) {
+                            $field_key = 'custom_' . $custom_field['name'];
+                            $custom_fields[$field_key] = __('Custom: ', 'cf7-propstack-integration') . $custom_field['label'];
+                        }
+                    }
+                }
+
+                // If no custom fields found, add some sample ones for testing
+                if (empty($custom_fields)) {
+                    $custom_fields = $this->get_sample_custom_fields();
+                }
+
+                // Cache the results for 1 hour
+                set_transient('cf7_propstack_custom_fields', $custom_fields, HOUR_IN_SECONDS);
+            } catch (Exception $e) {
+                // Log error silently in admin context
+                error_log('[CF7 Propstack] Failed to fetch custom fields: ' . $e->getMessage());
+                // Add sample fields as fallback
+                $custom_fields = $this->get_sample_custom_fields();
+                set_transient('cf7_propstack_custom_fields', $custom_fields, HOUR_IN_SECONDS);
+            }
+        } else {
+            // Add sample fields as fallback
+            $custom_fields = $this->get_sample_custom_fields();
+            set_transient('cf7_propstack_custom_fields', $custom_fields, HOUR_IN_SECONDS);
+        }
+
+        return $custom_fields;
+    }
+
+    /**
+     * Get sample custom fields for testing
+     */
+    private function get_sample_custom_fields()
+    {
+        return array(
+            'custom_interests' => __('Custom: Interests', 'cf7-propstack-integration'),
+            'custom_budget' => __('Custom: Budget Range', 'cf7-propstack-integration'),
+            'custom_property_type' => __('Custom: Property Type', 'cf7-propstack-integration'),
+            'custom_location' => __('Custom: Preferred Location', 'cf7-propstack-integration'),
+            'custom_move_date' => __('Custom: Move Date', 'cf7-propstack-integration'),
+            'custom_source' => __('Custom: Lead Source', 'cf7-propstack-integration'),
         );
     }
 
@@ -408,6 +484,50 @@ class CF7_Propstack_Admin
         }
 
         wp_send_json_success($fields);
+    }
+
+    /**
+     * Refresh custom fields cache via AJAX
+     */
+    public function refresh_custom_fields()
+    {
+        check_ajax_referer('cf7_propstack_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Unauthorized', 'cf7-propstack-integration'));
+        }
+
+        // Delete the existing cache
+        delete_transient('cf7_propstack_custom_fields');
+
+        // Fetch fresh custom fields
+        $custom_fields = array();
+        if (class_exists('CF7_Propstack_API')) {
+            try {
+                $api = new CF7_Propstack_API();
+                $api_custom_fields = $api->get_custom_fields();
+                if (!empty($api_custom_fields) && is_array($api_custom_fields)) {
+                    foreach ($api_custom_fields as $custom_field) {
+                        if (isset($custom_field['name']) && isset($custom_field['label'])) {
+                            $field_key = 'custom_' . $custom_field['name'];
+                            $custom_fields[$field_key] = __('Custom: ', 'cf7-propstack-integration') . $custom_field['label'];
+                        }
+                    }
+                }
+
+                // Cache the results for 1 hour
+                set_transient('cf7_propstack_custom_fields', $custom_fields, HOUR_IN_SECONDS);
+
+                wp_send_json_success(array(
+                    'message' => __('Custom fields refreshed successfully.', 'cf7-propstack-integration'),
+                    'fields' => $custom_fields
+                ));
+            } catch (Exception $e) {
+                wp_send_json_error(__('Failed to refresh custom fields: ', 'cf7-propstack-integration') . $e->getMessage());
+            }
+        } else {
+            wp_send_json_error(__('Propstack API class not available.', 'cf7-propstack-integration'));
+        }
     }
 
     /**
@@ -524,6 +644,8 @@ class CF7_Propstack_Admin
                 'pleaseFillAllFields' => __('Please fill in all required fields.', 'cf7-propstack-integration'),
                 'helpTitle' => __('How to use field mappings:', 'cf7-propstack-integration'),
                 'helpText' => __('Select a Contact Form 7 form, choose the form field you want to map, and select the corresponding Propstack field. This will automatically send form data to Propstack when the form is submitted.', 'cf7-propstack-integration'),
+                'refreshing' => __('Refreshing...', 'cf7-propstack-integration'),
+                'errorRefreshingFields' => __('Error refreshing custom fields', 'cf7-propstack-integration'),
             )
         ));
 

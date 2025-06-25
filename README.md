@@ -8,15 +8,18 @@ This plugin extends Contact Form 7 functionality by automatically sending form s
 
 ## Features
 
-- **Easy Field Mapping**: Visual interface to map CF7 form fields to Propstack contact fields
+- **Native CF7 Panel Integration**: Seamless integration using Contact Form 7's built-in panel system
+- **Inline Field Mapping Management**: Add and delete field mappings directly within the CF7 form editor
+- **Real-time Field Mapping**: Dynamic field mapping without page reloads
+- **Custom Fields Support**: Automatically fetches and displays custom fields from Propstack API
 - **Automatic Contact Creation**: Creates new contacts in Propstack when forms are submitted
 - **Contact Updates**: Updates existing contacts if they already exist (based on email)
 - **Form-Specific Integration**: Enable/disable integration per form using CF7's native panel system
 - **Debug Logging**: Comprehensive logging for troubleshooting
 - **Data Validation**: Validates data before sending to Propstack
 - **Data Sanitization**: Ensures data security and compliance
-- **Responsive Admin Interface**: Modern, mobile-friendly settings page
-- **Native CF7 Integration**: Uses Contact Form 7's built-in panel system for seamless integration
+- **Custom Fields Caching**: Efficient caching system for custom fields to improve performance
+- **Smart Field Disabling**: Automatically disables already mapped CF7 fields to prevent duplicates
 
 ## Requirements
 
@@ -41,38 +44,40 @@ This plugin extends Contact Form 7 functionality by automatically sending form s
 4. Optionally enable debug mode for logging
 5. Save settings
 
-### 2. Field Mappings
+### 2. Enable Integration Per Form
 
-1. In the Field Mappings section, select a Contact Form 7 form
-2. Choose the CF7 field you want to map
-3. Select the corresponding Propstack field
-4. Click "Add Mapping"
-5. Repeat for all fields you want to sync
-
-### 3. Enable Integration Per Form
-
-The integration can be enabled for individual forms using Contact Form 7's native panel system:
+The integration is managed through Contact Form 7's native panel system:
 
 1. **Edit a Contact Form 7 form**
 2. **Look for the "Propstack Integration" tab** in the form editor (alongside Form, Mail, Messages, and Additional Settings)
 3. **Check the "Enable Propstack integration for this form" checkbox**
-4. **Click "Manage Field Mappings"** to configure field mappings for this form
+4. **Configure field mappings directly in the panel** (see Field Mappings section below)
 5. **Save the form**
 
-The Propstack Integration panel provides:
+### 3. Field Mappings
 
-- A checkbox to enable/disable integration for the specific form
-- Information about field mappings
-- A direct link to manage field mappings in the plugin settings
+Field mappings can be managed directly within the CF7 form editor:
 
-### Alternative: Form Tag Method
+#### Adding Field Mappings
 
-You can also enable integration by adding the `[propstack_enable]` tag to your form content:
+1. In the **Propstack Integration** panel, scroll to the "Field Mappings" section
+2. Select a CF7 field from the dropdown (already mapped fields are disabled)
+3. Select the corresponding Propstack field
+4. Click "Add Mapping"
+5. The mapping will be added instantly without page reload
 
-```html
-[text* first-name "First Name"] [email* email "Email Address"]
-[propstack_enable] [submit "Send Message"]
-```
+#### Managing Existing Mappings
+
+- Current mappings are displayed in a table below the add mapping form
+- Click "Delete" next to any mapping to remove it
+- Mappings are updated in real-time
+
+#### Field Mapping Features
+
+- **Smart Dropdowns**: CF7 fields that are already mapped are automatically disabled
+- **Real-time Updates**: Add and delete mappings without page reloads
+- **Visual Feedback**: Success messages confirm mapping operations
+- **Form-specific**: Each form has its own independent field mappings
 
 ## Supported Propstack Fields
 
@@ -83,6 +88,45 @@ The plugin supports mapping to the following Propstack contact fields:
 - **Contact**: `home_phone`, `home_cell`, `office_phone`, `office_cell`
 - **Additional**: `description`, `language`, `newsletter`, `accept_contact`
 - **System**: `client_source_id`, `client_status_id`
+
+## Custom Fields Support
+
+The plugin automatically fetches and displays custom fields from your Propstack account:
+
+### Automatic Custom Field Detection
+
+- Custom fields are automatically fetched from the Propstack API
+- They appear in the dropdown with a "Custom: " prefix
+- Custom fields are cached for 1 hour to improve performance
+- If no custom fields are found, sample fields are provided for testing
+
+### Custom Field Mapping
+
+- Custom fields are mapped using the format `custom_{field_name}`
+- Data is sent to Propstack using the `custom_fields` object
+- Custom fields work alongside standard fields seamlessly
+
+### Custom Fields in Form Submissions
+
+When a form is submitted with custom field mappings:
+
+- Custom field data is separated from standard contact data
+- Data is sent to Propstack using the `custom_fields` structure
+- Custom fields are included in both contact creation and updates
+- The request format follows the official Propstack specification:
+
+```json
+{
+  "client": {
+    "first_name": "John",
+    "email": "john@example.com",
+    "custom_fields": {
+      "my_custom_field": "value",
+      "important_notes": "Important info"
+    }
+  }
+}
+```
 
 ## Field Transformations
 
@@ -95,7 +139,7 @@ The plugin automatically transforms certain field values:
 
 ## Usage Examples
 
-### Basic Contact Form with Panel Integration
+### Basic Contact Form
 
 ```html
 [text* first-name "First Name"] [text* last-name "Last Name"] [email* email
@@ -103,7 +147,7 @@ The plugin automatically transforms certain field values:
 [submit "Send Message"]
 ```
 
-_Note: Enable integration via the "Propstack Integration" panel in the form editor_
+_Enable integration via the "Propstack Integration" panel in the form editor_
 
 ### Advanced Form with Company Information
 
@@ -114,14 +158,7 @@ _Note: Enable integration via the "Propstack Integration" panel in the form edit
 newsletter "Subscribe to newsletter"] [submit "Submit"]
 ```
 
-_Note: Enable integration via the "Propstack Integration" panel in the form editor_
-
-### Form Tag Method (Legacy)
-
-```html
-[text* first-name "First Name"] [email* email "Email Address"]
-[propstack_enable] [submit "Send Message"]
-```
+_Enable integration via the "Propstack Integration" panel in the form editor_
 
 ## Troubleshooting
 
@@ -132,73 +169,59 @@ Enable debug mode in the plugin settings to log API requests and responses. Chec
 ### Common Issues
 
 1. **"API key not configured"**: Ensure you've entered your Propstack API key in the settings
-2. **"No field mappings found"**: Create field mappings for your form in the admin interface
+2. **"No field mappings found"**: Create field mappings for your form in the Propstack Integration panel
 3. **"Validation errors"**: Check that required fields (email, first_name or last_name) are mapped
 4. **"API Error"**: Verify your API key and check Propstack API status
 5. **"Propstack Integration panel not visible"**: Ensure you're editing a Contact Form 7 form and the plugin is activated
+6. **"Field mapping buttons not working"**: Check browser console for JavaScript errors and ensure jQuery is loaded
 
 ### Testing
 
 1. Create a test form
 2. Enable integration via the "Propstack Integration" panel
-3. Map at least the email field in the plugin settings
+3. Map at least the email field in the panel
 4. Submit the form
 5. Check your Propstack CRM for the new contact
 6. Review debug logs if issues occur
 
 ## API Reference
 
-The plugin uses the Propstack API endpoints:
+The plugin uses the Propstack API v1 for contact management. For detailed API documentation, visit the [Propstack API Reference](https://docs.propstack.de/reference/kontakte).
+
+### Supported Endpoints
 
 - `POST /contacts` - Create new contact
 - `PUT /contacts/{id}` - Update existing contact
 - `GET /contacts?email={email}` - Find contact by email
-- `GET /contact_sources` - Get available contact sources
-
-## Security
-
-- All data is sanitized before sending to Propstack
-- API keys are stored securely in WordPress options
-- Nonce verification for all AJAX requests
-- User capability checks for admin functions
-- Integration settings stored as CF7 form properties
-
-## Support
-
-For support and feature requests, please:
-
-1. Check the debug logs for error messages
-2. Verify your Propstack API key and permissions
-3. Ensure Contact Form 7 is properly configured
-4. Test with a simple form first
-5. Verify the "Propstack Integration" panel is visible in the form editor
+- `GET /contact_sources` - Get contact sources
+- `GET /custom_fields` - Get custom fields
 
 ## Changelog
 
-### Version 1.1.0
-
-- **NEW**: Native Contact Form 7 panel integration
-- **IMPROVED**: Replaced meta box approach with CF7's built-in panel system
-- **ENHANCED**: Better user experience with integrated form editor interface
-- **UPDATED**: Form-specific settings now stored as CF7 properties
-- **FIXED**: Compatibility issues with Contact Form 7's custom editor
-
 ### Version 1.0.0
 
-- Initial release
-- Basic field mapping functionality
+- Initial release with basic Contact Form 7 integration
+- Field mapping interface
 - Contact creation and updates
-- Admin interface for configuration
+- Custom fields support
 - Debug logging
-- Form-specific integration options
+
+### Version 1.1.0
+
+- Native CF7 panel integration
+- Inline field mapping management
+- Real-time field mapping updates
+- Smart field disabling
+- Improved user experience
+
+## Support
+
+For support and feature requests, please contact the plugin developer or create an issue in the plugin repository.
 
 ## License
 
 This plugin is licensed under the GPL v2 or later.
 
-## Credits
+---
 
-- Built for Contact Form 7 integration
-- Uses Propstack API for CRM functionality
-- Follows WordPress coding standards
-- Implements Contact Form 7's native panel system
+**Note**: This plugin requires an active Propstack account and API key to function. Please ensure you have the necessary Propstack credentials before installation.
