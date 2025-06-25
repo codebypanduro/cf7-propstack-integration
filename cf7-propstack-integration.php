@@ -57,6 +57,10 @@ class CF7_Propstack_Integration
         // Load the API client first
         require_once CF7_PROPSTACK_PLUGIN_PATH . 'includes/class-propstack-api.php';
 
+        // Load the plugin updater for GitHub releases
+        require_once CF7_PROPSTACK_PLUGIN_PATH . 'includes/class-plugin-updater.php';
+        new CF7_Propstack_Plugin_Updater();
+
         // Load admin functionality
         if (is_admin()) {
             require_once CF7_PROPSTACK_PLUGIN_PATH . 'includes/admin/class-admin.php';
