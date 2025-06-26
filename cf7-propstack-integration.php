@@ -76,11 +76,6 @@ class CF7_Propstack_Integration
      */
     public function load_integration_handler()
     {
-        // Debug logging
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('[CF7 Propstack] Loading integration handler');
-        }
-
         require_once CF7_PROPSTACK_PLUGIN_PATH . 'includes/class-integration-handler.php';
         new CF7_Propstack_Integration_Handler();
     }

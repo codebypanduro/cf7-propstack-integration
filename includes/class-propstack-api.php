@@ -44,12 +44,9 @@ class CF7_Propstack_API
             'client' => $contact_data
         );
 
-        $this->log_error('Creating contact with data: ' . json_encode($request_data));
-
         $response = $this->make_request('POST', $endpoint, $request_data);
 
         if ($response && isset($response['ok']) && $response['ok']) {
-            $this->log_success('Contact created successfully with ID: ' . $response['id']);
             return $response['id'];
         }
 
@@ -74,12 +71,9 @@ class CF7_Propstack_API
             'client' => $contact_data
         );
 
-        $this->log_error('Updating contact ' . $contact_id . ' with data: ' . json_encode($request_data));
-
         $response = $this->make_request('PUT', $endpoint, $request_data);
 
         if ($response && isset($response['id'])) {
-            $this->log_success('Contact updated successfully: ' . $contact_id);
             return true;
         }
 
@@ -141,11 +135,8 @@ class CF7_Propstack_API
 
         // Use the correct endpoint from Propstack documentation
         $endpoint = $this->api_url . '/custom_field_groups?entity=for_clients';
-        $this->log_error('Fetching custom fields from: ' . $endpoint);
 
         $response = $this->make_request('GET', $endpoint);
-
-        $this->log_error('Custom fields response: ' . json_encode($response));
 
         if ($response && isset($response['data']) && is_array($response['data'])) {
             $custom_fields = array();
@@ -167,11 +158,9 @@ class CF7_Propstack_API
                 }
             }
 
-            $this->log_error('Processed custom fields: ' . count($custom_fields));
             return $custom_fields;
         }
 
-        $this->log_error('No custom fields returned or invalid response');
         return array();
     }
 
