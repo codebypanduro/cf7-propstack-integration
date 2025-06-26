@@ -95,11 +95,10 @@ jobs:
           # Create a temporary file with the new content
           echo "$DOWNLOAD_SECTION" > temp_download_section.md
 
-          # Insert the download section after the title and before the description
-          # First, get everything after the title
-          tail -n +3 README.md > temp_rest.md
+          # Remove any existing 'Download Latest Release' section (from the header to the next ---)
+          awk '/^## 📦 Download Latest Release/{flag=1; next} /^---$/{flag=0; next} !flag' README.md > temp_rest.md
 
-          # Combine the download section with the rest
+          # Combine the new download section with the cleaned rest
           cat temp_download_section.md temp_rest.md > README.md
 
           # Clean up temporary files
