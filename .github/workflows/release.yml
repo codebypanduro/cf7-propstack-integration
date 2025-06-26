@@ -76,6 +76,45 @@ jobs:
           # Move zip to root
           mv cf7-propstack-integration.zip ../
 
+      - name: Update README with download link
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          RELEASE_URL="${{ github.event.release.html_url }}"
+
+          # Create the download section content
+          DOWNLOAD_SECTION="## 📦 Download Latest Release
+
+          **Version $VERSION** - [Download ZIP](https://github.com/${{ github.repository }}/releases/download/v$VERSION/cf7-propstack-integration.zip)
+
+          [View all releases]($RELEASE_URL) | [Installation Guide](#installation)
+
+          ---
+
+          "
+
+          # Create a temporary file with the new content
+          echo "$DOWNLOAD_SECTION" > temp_download_section.md
+
+          # Insert the download section after the title and before the description
+          # First, get everything after the title
+          tail -n +3 README.md > temp_rest.md
+
+          # Combine the download section with the rest
+          cat temp_download_section.md temp_rest.md > README.md
+
+          # Clean up temporary files
+          rm temp_download_section.md temp_rest.md
+
+          echo "Updated README with download link for version $VERSION"
+
+      - name: Commit and push README update
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add README.md
+          git commit -m "Add download link for version ${{ steps.version.outputs.version }} to README [skip ci]"
+          git push origin HEAD:main
+
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
         env:
