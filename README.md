@@ -1,10 +1,12 @@
 ## 📦 Download Latest Release
 
-**Version 1.2.0** - [Download ZIP](https://github.com/codebypanduro/cf7-propstack-integration/releases/download/v1.2.0/cf7-propstack-integration.zip)
+**Version 1.2.1** - [Download ZIP](https://github.com/codebypanduro/cf7-propstack-integration/releases/download/v1.2.1/cf7-propstack-integration.zip)
 
-[View all releases](https://github.com/codebypanduro/cf7-propstack-integration/releases/tag/v1.2.0) | [Installation Guide](#installation)
+[View all releases](https://github.com/codebypanduro/cf7-propstack-integration/releases/tag/v1.2.1) | [Installation Guide](#installation)
 
 ---
+
+
 
 A WordPress plugin that integrates Contact Form 7 with Propstack CRM to automatically create and update contacts from form submissions.
 
@@ -228,6 +230,5 @@ For support and feature requests, please contact the plugin developer or create 
 
 This plugin is licensed under the GPL v2 or later.
 
----
 
 **Note**: This plugin requires an active Propstack account and API key to function. Please ensure you have the necessary Propstack credentials before installation.
