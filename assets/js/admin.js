@@ -4,6 +4,8 @@ jQuery(document).ready(function ($) {
     var formId = $(this).val();
     var fieldSelect = $("#cf7_field_select");
 
+    console.log("CF7 form selection changed to:", formId);
+
     if (!formId) {
       fieldSelect
         .html(
@@ -16,6 +18,7 @@ jQuery(document).ready(function ($) {
     }
 
     // Get form fields via AJAX
+    console.log("Making AJAX call for form ID:", formId);
     $.ajax({
       url: cf7PropstackAdmin.ajaxUrl,
       type: "POST",
@@ -25,6 +28,7 @@ jQuery(document).ready(function ($) {
         nonce: cf7PropstackAdmin.nonce,
       },
       success: function (response) {
+        console.log("AJAX response:", response);
         if (response.success && response.data) {
           var options =
             '<option value="">' +
@@ -44,7 +48,8 @@ jQuery(document).ready(function ($) {
             .prop("disabled", true);
         }
       },
-      error: function () {
+      error: function (xhr, status, error) {
+        console.log("AJAX error:", { xhr: xhr, status: status, error: error });
         fieldSelect
           .html(
             '<option value="">' +
@@ -79,8 +84,12 @@ jQuery(document).ready(function ($) {
       },
       success: function (response) {
         if (response.success) {
-          alert(response.data);
-          location.reload(); // Reload to show new mapping
+          // Optionally show a success message
+          // alert(response.data);
+          updateMappingsList();
+          // Optionally reset the dropdowns
+          $("#cf7_field_select").val("");
+          $("#propstack_field_select").val("");
         } else {
           alert(response.data);
         }
@@ -90,6 +99,63 @@ jQuery(document).ready(function ($) {
       },
     });
   });
+
+  // Function to update the mappings list
+  function updateMappingsList() {
+    var formId = $("#cf7_form_select").val();
+    $.ajax({
+      url: cf7PropstackAdmin.ajaxUrl,
+      type: "POST",
+      data: {
+        action: "get_field_mappings",
+        form_id: formId,
+        nonce: cf7PropstackAdmin.nonce,
+      },
+      success: function (response) {
+        if (response.success && response.data && response.data.html) {
+          $(".mappings-list").html(response.data.html);
+          disableMappedFields(); // Disable already mapped fields
+        }
+      },
+    });
+  }
+
+  // Disable already mapped fields in dropdowns
+  function disableMappedFields() {
+    // Get mapped CF7 field values from the table (should match the value attribute)
+    var mappedCF7 = [];
+    $(".mappings-list tbody tr").each(function () {
+      var cf7Field = $(this).find("td:nth-child(2)").text().trim();
+      if (cf7Field) mappedCF7.push(cf7Field);
+    });
+
+    // Disable mapped CF7 fields in the dropdown by value
+    $("#cf7_field_select option").each(function () {
+      var val = $(this).val();
+      if (mappedCF7.includes(val)) {
+        $(this).prop("disabled", true);
+      } else {
+        $(this).prop("disabled", false);
+      }
+    });
+
+    // Get mapped Propstack field values from the table (should match the value attribute)
+    var mappedPropstack = [];
+    $(".mappings-list tbody tr").each(function () {
+      var propstackField = $(this).find("td:nth-child(3)").text().trim();
+      if (propstackField) mappedPropstack.push(propstackField);
+    });
+
+    // Disable mapped Propstack fields in the dropdown by value
+    $("#propstack_field_select option").each(function () {
+      var val = $(this).val();
+      if (mappedPropstack.includes(val)) {
+        $(this).prop("disabled", true);
+      } else {
+        $(this).prop("disabled", false);
+      }
+    });
+  }
 
   // Handle delete mapping buttons
   $(".delete-mapping").on("click", function () {

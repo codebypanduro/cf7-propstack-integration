@@ -23,6 +23,7 @@ class CF7_Propstack_Admin
         add_action('wp_ajax_delete_field_mapping', array($this, 'delete_field_mapping'));
         add_action('wp_ajax_get_cf7_fields', array($this, 'get_cf7_fields'));
         add_action('wp_ajax_refresh_custom_fields', array($this, 'refresh_custom_fields'));
+        add_action('wp_ajax_get_field_mappings', array($this, 'get_field_mappings_ajax'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
     }
 
@@ -244,7 +245,7 @@ class CF7_Propstack_Admin
                 <?php endif; ?>
             </div>
         </div>
-<?php
+    <?php
     }
 
     /**
@@ -445,6 +446,10 @@ class CF7_Propstack_Admin
      */
     public function get_cf7_fields()
     {
+        // Basic debugging to see if this method is being called
+        error_log('[CF7 Propstack Admin] get_cf7_fields method called');
+        error_log('[CF7 Propstack Admin] POST data: ' . json_encode($_POST));
+
         check_ajax_referer('cf7_propstack_nonce', 'nonce');
 
         if (!current_user_can('manage_options')) {
@@ -453,18 +458,49 @@ class CF7_Propstack_Admin
 
         $form_id = sanitize_text_field($_POST['form_id']);
 
+        // Debug logging
+        error_log('[CF7 Propstack Admin] AJAX get_cf7_fields called with form_id: ' . $form_id);
+        error_log('[CF7 Propstack Admin] Form ID type: ' . gettype($form_id));
+        error_log('[CF7 Propstack Admin] Form ID value: "' . $form_id . '"');
+
         if (empty($form_id)) {
+            error_log('[CF7 Propstack Admin] Form ID is empty');
             wp_send_json_error(__('Form ID is required.', 'cf7-propstack-integration'));
         }
 
-        $forms = WPCF7_ContactForm::find($form_id);
-        $form = is_array($forms) ? reset($forms) : $forms;
-        if (!$form || !is_object($form)) {
+        // Try to get the form directly by ID using get_post
+        $form_post = get_post($form_id);
+        if (!$form_post || $form_post->post_type !== 'wpcf7_contact_form') {
+            error_log('[CF7 Propstack Admin] Form post not found for ID: ' . $form_id);
             wp_send_json_error(__('Form not found.', 'cf7-propstack-integration'));
         }
 
+        // Create the form object from the post
+        $form = WPCF7_ContactForm::get_instance($form_id);
+        if (!$form) {
+            error_log('[CF7 Propstack Admin] Could not create form instance for ID: ' . $form_id);
+            wp_send_json_error(__('Form not found.', 'cf7-propstack-integration'));
+        }
+
+        error_log('[CF7 Propstack Admin] Found form: ' . ($form ? 'yes' : 'no'));
+
+        if (!$form || !is_object($form)) {
+            error_log('[CF7 Propstack Admin] Form not found for ID: ' . $form_id);
+            wp_send_json_error(__('Form not found.', 'cf7-propstack-integration'));
+        }
+
+        // Log form details for debugging
+        $form_title = $form->title();
+        $form_id_actual = $form->id();
+        error_log('[CF7 Propstack Admin] Form details - ID: ' . $form_id_actual . ', Title: ' . $form_title);
+        error_log('[CF7 Propstack Admin] Requested ID vs Actual ID: ' . $form_id . ' vs ' . $form_id_actual);
+
         $form_content = $form->prop('form');
+        error_log('[CF7 Propstack Admin] Form content length: ' . strlen($form_content));
+        error_log('[CF7 Propstack Admin] Form content preview: ' . substr($form_content, 0, 200));
+
         $fields = $this->extract_form_fields($form_content);
+        error_log('[CF7 Propstack Admin] Extracted fields: ' . json_encode($fields));
 
         // Remove already-mapped fields for this form
         global $wpdb;
@@ -473,6 +509,9 @@ class CF7_Propstack_Admin
             "SELECT cf7_field FROM $table_name WHERE form_id = %s",
             $form_id
         ));
+
+        error_log('[CF7 Propstack Admin] Already mapped fields: ' . json_encode($mapped));
+
         if (!empty($mapped)) {
             foreach ($mapped as $mapped_field) {
                 unset($fields[$mapped_field]);
@@ -480,9 +519,11 @@ class CF7_Propstack_Admin
         }
 
         if (empty($fields)) {
+            error_log('[CF7 Propstack Admin] No fields found after processing');
             wp_send_json_error(__('No fields found in this form.', 'cf7-propstack-integration'));
         }
 
+        error_log('[CF7 Propstack Admin] Returning fields: ' . json_encode($fields));
         wp_send_json_success($fields);
     }
 
@@ -537,11 +578,17 @@ class CF7_Propstack_Admin
     {
         $fields = array();
 
+        error_log('[CF7 Propstack Admin] Extracting fields from form content');
+
         // Match CF7 form tags
         preg_match_all('/\[([^\]]+)\]/', $form_content, $matches);
 
+        error_log('[CF7 Propstack Admin] Found ' . count($matches[1]) . ' form tags');
+
         if (!empty($matches[1])) {
             foreach ($matches[1] as $tag) {
+                error_log('[CF7 Propstack Admin] Processing tag: ' . $tag);
+
                 // Split the tag by spaces, the second part is usually the field name
                 $tag_parts = preg_split('/\s+/', trim($tag));
                 if (count($tag_parts) > 1) {
@@ -549,15 +596,68 @@ class CF7_Propstack_Admin
                     $field_name = $tag_parts[1];
                     // Remove asterisk for required fields
                     $field_type = rtrim($field_type, '*');
-                    // Only add if not a submit or special tag
-                    if (!in_array($field_type, ['submit', 'propstack_enable'])) {
+
+                    // Skip non-field tags and layout tags
+                    $skip_tags = array(
+                        'submit',
+                        'propstack_enable',
+                        'uacf7-row',
+                        'uacf7-col',
+                        '/uacf7-row',
+                        '/uacf7-col',
+                        'row',
+                        'col',
+                        '/row',
+                        '/col',
+                        'div',
+                        '/div',
+                        'span',
+                        '/span'
+                    );
+
+                    if (in_array($field_type, $skip_tags)) {
+                        error_log('[CF7 Propstack Admin] Skipping non-field tag: ' . $field_type);
+                        continue;
+                    }
+
+                    // Skip closing tags (tags that start with /)
+                    if (strpos($field_type, '/') === 0) {
+                        error_log('[CF7 Propstack Admin] Skipping closing tag: ' . $field_type);
+                        continue;
+                    }
+
+                    // Only include actual form input field types
+                    $valid_field_types = array(
+                        'text',
+                        'email',
+                        'tel',
+                        'textarea',
+                        'select',
+                        'checkbox',
+                        'radio',
+                        'number',
+                        'date',
+                        'file',
+                        'url',
+                        'password',
+                        'search',
+                        'range'
+                    );
+
+                    if (in_array($field_type, $valid_field_types)) {
                         $label = $this->get_field_label($field_name, $field_type);
                         $fields[$field_name] = $label;
+                        error_log('[CF7 Propstack Admin] Added field: ' . $field_name . ' => ' . $label);
+                    } else {
+                        error_log('[CF7 Propstack Admin] Skipping invalid field type: ' . $field_type);
                     }
+                } else {
+                    error_log('[CF7 Propstack Admin] Invalid tag format: ' . $tag);
                 }
             }
         }
 
+        error_log('[CF7 Propstack Admin] Final fields array: ' . json_encode($fields));
         return $fields;
     }
 
@@ -655,5 +755,55 @@ class CF7_Propstack_Admin
             array(),
             CF7_PROPSTACK_VERSION
         );
+    }
+
+    /**
+     * AJAX: Get field mappings table HTML for a form
+     */
+    public function get_field_mappings_ajax()
+    {
+        check_ajax_referer('cf7_propstack_nonce', 'nonce');
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Unauthorized', 'cf7-propstack-integration'));
+        }
+        $form_id = sanitize_text_field($_POST['form_id']);
+        $mappings = array_filter($this->get_field_mappings(), function ($m) use ($form_id) {
+            return $m->form_id == $form_id;
+        });
+        $propstack_fields = $this->get_propstack_fields();
+        ob_start();
+    ?>
+        <h3><?php _e('Current Mappings', 'cf7-propstack-integration'); ?></h3>
+        <?php if (empty($mappings)): ?>
+            <p><?php _e('No field mappings configured yet.', 'cf7-propstack-integration'); ?></p>
+        <?php else: ?>
+            <table class="wp-list-table widefat fixed striped">
+                <thead>
+                    <tr>
+                        <th><?php _e('Form', 'cf7-propstack-integration'); ?></th>
+                        <th><?php _e('CF7 Field', 'cf7-propstack-integration'); ?></th>
+                        <th><?php _e('Propstack Field', 'cf7-propstack-integration'); ?></th>
+                        <th><?php _e('Actions', 'cf7-propstack-integration'); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($mappings as $mapping): ?>
+                        <tr>
+                            <td><?php echo esc_html($this->get_form_title($mapping->form_id)); ?></td>
+                            <td><?php echo esc_html($mapping->cf7_field); ?></td>
+                            <td><?php echo esc_html($propstack_fields[$mapping->propstack_field] ?? $mapping->propstack_field); ?></td>
+                            <td>
+                                <button type="button" class="button button-small delete-mapping" data-id="<?php echo esc_attr($mapping->id); ?>">
+                                    <?php _e('Delete', 'cf7-propstack-integration'); ?>
+                                </button>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+<?php
+        $html = ob_get_clean();
+        wp_send_json_success(['html' => $html]);
     }
 }

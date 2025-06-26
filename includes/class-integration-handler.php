@@ -99,6 +99,24 @@ class CF7_Propstack_Integration_Handler
         $contact_form = WPCF7_ContactForm::get_current();
         $form_id = $contact_form->id();
 
+        // Fallback: try to get form ID from POST or GET
+        if (empty($form_id) || $form_id === 0) {
+            if (isset($_GET['post'])) {
+                $form_id = intval($_GET['post']);
+            } elseif (isset($_POST['post_ID'])) {
+                $form_id = intval($_POST['post_ID']);
+            }
+        }
+
+        // If still no form ID, try to get the first available form
+        if (empty($form_id) || $form_id === 0) {
+            $forms = WPCF7_ContactForm::find();
+            if (!empty($forms)) {
+                $first_form = is_array($forms) ? reset($forms) : $forms;
+                $form_id = $first_form->id();
+            }
+        }
+
         // Get current field mappings for this form
         $current_mappings = $this->get_field_mappings($form_id);
 
@@ -445,15 +463,28 @@ class CF7_Propstack_Integration_Handler
      */
     private function get_cf7_fields_for_form($form_id)
     {
-        $forms = WPCF7_ContactForm::find($form_id);
-        $form = is_array($forms) ? reset($forms) : $forms;
-
-        if (!$form || !is_object($form)) {
+        // Get the form post
+        $form_post = get_post($form_id);
+        if (!$form_post) {
             return array();
         }
 
-        $form_content = $form->prop('form');
-        return $this->extract_form_fields($form_content);
+        // Create form instance
+        $contact_form = WPCF7_ContactForm::get_instance($form_id);
+        if (!$contact_form) {
+            return array();
+        }
+
+        // Get form content
+        $form_content = $contact_form->prop('form');
+        if (empty($form_content)) {
+            return array();
+        }
+
+        // Extract fields from form content
+        $fields = $this->extract_form_fields($form_content);
+
+        return $fields;
     }
 
     /**
@@ -468,24 +499,115 @@ class CF7_Propstack_Integration_Handler
 
         if (!empty($matches[1])) {
             foreach ($matches[1] as $tag) {
-                $parts = explode(' ', trim($tag));
+                // Split the tag by spaces, but be careful with quoted strings
+                $parts = $this->parse_cf7_tag($tag);
+
                 if (count($parts) >= 2) {
                     $field_type = $parts[0];
                     $field_name = $parts[1];
 
-                    // Skip non-field tags
-                    if (in_array($field_type, array('submit', 'propstack_enable'))) {
+                    // Remove asterisk for required fields
+                    $field_type = rtrim($field_type, '*');
+
+                    // Skip non-field tags and layout tags
+                    $skip_tags = array(
+                        'submit',
+                        'propstack_enable',
+                        'uacf7-row',
+                        'uacf7-col',
+                        '/uacf7-row',
+                        '/uacf7-col',
+                        'row',
+                        'col',
+                        '/row',
+                        '/col',
+                        'div',
+                        '/div',
+                        'span',
+                        '/span'
+                    );
+
+                    if (in_array($field_type, $skip_tags)) {
                         continue;
                     }
 
-                    // Get field label
-                    $label = $this->get_field_label($field_name, $field_type, $tag);
-                    $fields[$field_name] = $label;
+                    // Skip closing tags (tags that start with /)
+                    if (strpos($field_type, '/') === 0) {
+                        continue;
+                    }
+
+                    // Only include actual form input field types
+                    $valid_field_types = array(
+                        'text',
+                        'email',
+                        'tel',
+                        'textarea',
+                        'select',
+                        'checkbox',
+                        'radio',
+                        'number',
+                        'date',
+                        'file',
+                        'url',
+                        'password',
+                        'search',
+                        'range',
+                        'hidden'
+                    );
+
+                    if (in_array($field_type, $valid_field_types)) {
+                        // Get field label
+                        $label = $this->get_field_label($field_name, $field_type, $tag);
+                        $fields[$field_name] = $label;
+                    }
                 }
             }
         }
 
         return $fields;
+    }
+
+    /**
+     * Parse CF7 tag properly, handling quoted strings
+     */
+    private function parse_cf7_tag($tag)
+    {
+        $parts = array();
+        $current = '';
+        $in_quotes = false;
+        $quote_char = '';
+
+        for ($i = 0; $i < strlen($tag); $i++) {
+            $char = $tag[$i];
+
+            if (($char === '"' || $char === "'") && !$in_quotes) {
+                $in_quotes = true;
+                $quote_char = $char;
+                continue;
+            }
+
+            if ($char === $quote_char && $in_quotes) {
+                $in_quotes = false;
+                $quote_char = '';
+                continue;
+            }
+
+            if ($char === ' ' && !$in_quotes) {
+                if (!empty($current)) {
+                    $parts[] = trim($current);
+                    $current = '';
+                }
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        if (!empty($current)) {
+            $parts[] = trim($current);
+        }
+
+        return $parts;
     }
 
     /**
@@ -543,18 +665,14 @@ class CF7_Propstack_Integration_Handler
         // Check cache first
         $cached_fields = get_transient('cf7_propstack_custom_fields');
         if ($cached_fields !== false) {
-            $this->log_error('Using cached custom fields: ' . count($cached_fields));
             return $cached_fields;
         }
-
-        $this->log_error('No cached custom fields found, fetching from API');
 
         // Fetch from API if cache is empty
         $custom_fields = array();
         if ($this->api) {
             try {
                 $api_custom_fields = $this->api->get_custom_fields();
-                $this->log_error('API returned custom fields: ' . json_encode($api_custom_fields));
 
                 if (!empty($api_custom_fields) && is_array($api_custom_fields)) {
                     foreach ($api_custom_fields as $custom_field) {
@@ -565,28 +683,18 @@ class CF7_Propstack_Integration_Handler
                     }
                 }
 
-                $this->log_error('Processed custom fields: ' . json_encode($custom_fields));
-
                 // If no custom fields found, add some sample ones for testing
                 if (empty($custom_fields)) {
-                    $this->log_error('No custom fields found, adding sample fields for testing');
                     $custom_fields = $this->get_sample_custom_fields();
                 }
 
                 // Cache the results for 1 hour
                 set_transient('cf7_propstack_custom_fields', $custom_fields, HOUR_IN_SECONDS);
-                $this->log_error('Custom fields cached successfully');
             } catch (Exception $e) {
-                $this->log_error('Failed to fetch custom fields: ' . $e->getMessage());
                 // Add sample fields as fallback
                 $custom_fields = $this->get_sample_custom_fields();
                 set_transient('cf7_propstack_custom_fields', $custom_fields, HOUR_IN_SECONDS);
             }
-        } else {
-            $this->log_error('API object not available');
-            // Add sample fields as fallback
-            $custom_fields = $this->get_sample_custom_fields();
-            set_transient('cf7_propstack_custom_fields', $custom_fields, HOUR_IN_SECONDS);
         }
 
         return $custom_fields;
@@ -652,7 +760,6 @@ class CF7_Propstack_Integration_Handler
         $mappings = $this->get_field_mappings($form_id);
 
         if (empty($mappings)) {
-            $this->log_error('No field mappings found for form ID: ' . $form_id);
             return;
         }
 
@@ -660,14 +767,12 @@ class CF7_Propstack_Integration_Handler
         $contact_data = $this->map_form_data($form_data, $mappings);
 
         if (empty($contact_data)) {
-            $this->log_error('No valid contact data mapped for form ID: ' . $form_id);
             return;
         }
 
         // Validate contact data
         $validation_errors = $this->api->validate_contact_data($contact_data);
         if (!empty($validation_errors)) {
-            $this->log_error('Validation errors: ' . implode(', ', $validation_errors));
             return;
         }
 
@@ -683,14 +788,8 @@ class CF7_Propstack_Integration_Handler
         // Create or update contact
         if ($existing_contact) {
             $result = $this->api->update_contact($existing_contact['id'], $contact_data);
-            if ($result) {
-                $this->log_success('Contact updated in Propstack: ' . $existing_contact['id']);
-            }
         } else {
             $result = $this->api->create_contact($contact_data);
-            if ($result) {
-                $this->log_success('Contact created in Propstack: ' . $result);
-            }
         }
     }
 
@@ -739,27 +838,37 @@ class CF7_Propstack_Integration_Handler
         $contact_data = array();
         $custom_fields = array();
 
-        foreach ($mappings as $cf7_field => $propstack_field) {
-            if (isset($form_data[$cf7_field]) && !empty($form_data[$cf7_field])) {
-                $value = $form_data[$cf7_field];
+        // List of known checkbox fields (add more as needed)
+        $checkbox_fields = array('accept_contact');
 
-                // Handle array values (like checkboxes)
+        foreach ($mappings as $cf7_field => $propstack_field) {
+            // Special logic for newsletter
+            if ($propstack_field === 'newsletter') {
+                $value = isset($form_data[$cf7_field]) ? true : false;
+            } else if (in_array($cf7_field, $checkbox_fields)) {
+                $value = isset($form_data[$cf7_field]) ? true : false;
+            } else if (isset($form_data[$cf7_field]) && !empty($form_data[$cf7_field])) {
+                $value = $form_data[$cf7_field];
+                // Handle array values (like checkboxes with multiple values)
                 if (is_array($value)) {
                     $value = implode(', ', $value);
                 }
+            } else {
+                // If not set, skip
+                continue;
+            }
 
-                // Handle special field transformations
-                $value = $this->transform_field_value($propstack_field, $value);
+            // Handle special field transformations
+            $value = $this->transform_field_value($propstack_field, $value);
 
-                // Check if this is a custom field
-                if (strpos($propstack_field, 'custom_') === 0) {
-                    // Extract the actual custom field name (remove 'custom_' prefix)
-                    $custom_field_name = substr($propstack_field, 7);
-                    $custom_fields[$custom_field_name] = $value;
-                } else {
-                    // Standard field
-                    $contact_data[$propstack_field] = $value;
-                }
+            // Check if this is a custom field
+            if (strpos($propstack_field, 'custom_') === 0) {
+                // Extract the actual custom field name (remove 'custom_' prefix)
+                $custom_field_name = substr($propstack_field, 7);
+                $custom_fields[$custom_field_name] = $value;
+            } else {
+                // Standard field
+                $contact_data[$propstack_field] = $value;
             }
         }
 
@@ -833,32 +942,6 @@ class CF7_Propstack_Integration_Handler
     {
         // This tag is just for enabling the integration, no output needed
         return '';
-    }
-
-    /**
-     * Log error messages
-     */
-    private function log_error($message)
-    {
-        $options = get_option('cf7_propstack_options');
-        $debug_mode = isset($options['debug_mode']) ? $options['debug_mode'] : false;
-
-        if ($debug_mode) {
-            error_log('[CF7 Propstack] ERROR: ' . $message);
-        }
-    }
-
-    /**
-     * Log success messages
-     */
-    private function log_success($message)
-    {
-        $options = get_option('cf7_propstack_options');
-        $debug_mode = isset($options['debug_mode']) ? $options['debug_mode'] : false;
-
-        if ($debug_mode) {
-            error_log('[CF7 Propstack] SUCCESS: ' . $message);
-        }
     }
 
     /**
