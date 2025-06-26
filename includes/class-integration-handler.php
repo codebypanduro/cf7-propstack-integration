@@ -99,6 +99,31 @@ class CF7_Propstack_Integration_Handler
         $contact_form = WPCF7_ContactForm::get_current();
         $form_id = $contact_form->id();
 
+        // Debug logging
+        $this->log_error('Rendering panel for form ID: ' . $form_id);
+        $this->log_error('Contact form object: ' . ($contact_form ? 'valid' : 'null'));
+
+        // Fallback: try to get form ID from POST or GET
+        if (empty($form_id) || $form_id === 0) {
+            if (isset($_GET['post'])) {
+                $form_id = intval($_GET['post']);
+                $this->log_error('Using fallback form ID from GET: ' . $form_id);
+            } elseif (isset($_POST['post_ID'])) {
+                $form_id = intval($_POST['post_ID']);
+                $this->log_error('Using fallback form ID from POST: ' . $form_id);
+            }
+        }
+
+        // If still no form ID, try to get the first available form
+        if (empty($form_id) || $form_id === 0) {
+            $forms = WPCF7_ContactForm::find();
+            if (!empty($forms)) {
+                $first_form = is_array($forms) ? reset($forms) : $forms;
+                $form_id = $first_form->id();
+                $this->log_error('Using first available form ID: ' . $form_id);
+            }
+        }
+
         // Get current field mappings for this form
         $current_mappings = $this->get_field_mappings($form_id);
 
@@ -445,15 +470,36 @@ class CF7_Propstack_Integration_Handler
      */
     private function get_cf7_fields_for_form($form_id)
     {
-        $forms = WPCF7_ContactForm::find($form_id);
-        $form = is_array($forms) ? reset($forms) : $forms;
+        // Debug logging
+        $this->log_error('Getting CF7 fields for form ID: ' . $form_id);
+
+        // Try to get the form directly by ID using get_post
+        $form_post = get_post($form_id);
+        if (!$form_post || $form_post->post_type !== 'wpcf7_contact_form') {
+            $this->log_error('Form post not found for ID: ' . $form_id);
+            return array();
+        }
+
+        // Create the form object from the post
+        $form = WPCF7_ContactForm::get_instance($form_id);
+        if (!$form) {
+            $this->log_error('Could not create form instance for ID: ' . $form_id);
+            return array();
+        }
 
         if (!$form || !is_object($form)) {
+            $this->log_error('Form not found for ID: ' . $form_id);
             return array();
         }
 
         $form_content = $form->prop('form');
-        return $this->extract_form_fields($form_content);
+        $this->log_error('Form content length: ' . strlen($form_content));
+        $this->log_error('Form content preview: ' . substr($form_content, 0, 200));
+
+        $fields = $this->extract_form_fields($form_content);
+        $this->log_error('Extracted fields: ' . json_encode($fields));
+
+        return $fields;
     }
 
     /**
@@ -463,29 +509,135 @@ class CF7_Propstack_Integration_Handler
     {
         $fields = array();
 
+        $this->log_error('Extracting fields from form content');
+
         // Match CF7 form tags like [text* first-name "First Name"]
         preg_match_all('/\[([^\]]+)\]/', $form_content, $matches);
 
+        $this->log_error('Found ' . count($matches[1]) . ' form tags');
+
         if (!empty($matches[1])) {
             foreach ($matches[1] as $tag) {
-                $parts = explode(' ', trim($tag));
+                $this->log_error('Processing tag: ' . $tag);
+
+                // Split the tag by spaces, but be careful with quoted strings
+                $parts = $this->parse_cf7_tag($tag);
+
                 if (count($parts) >= 2) {
                     $field_type = $parts[0];
                     $field_name = $parts[1];
 
-                    // Skip non-field tags
-                    if (in_array($field_type, array('submit', 'propstack_enable'))) {
+                    // Remove asterisk for required fields
+                    $field_type = rtrim($field_type, '*');
+
+                    // Skip non-field tags and layout tags
+                    $skip_tags = array(
+                        'submit',
+                        'propstack_enable',
+                        'uacf7-row',
+                        'uacf7-col',
+                        '/uacf7-row',
+                        '/uacf7-col',
+                        'row',
+                        'col',
+                        '/row',
+                        '/col',
+                        'div',
+                        '/div',
+                        'span',
+                        '/span'
+                    );
+
+                    if (in_array($field_type, $skip_tags)) {
+                        $this->log_error('Skipping non-field tag: ' . $field_type);
                         continue;
                     }
 
-                    // Get field label
-                    $label = $this->get_field_label($field_name, $field_type, $tag);
-                    $fields[$field_name] = $label;
+                    // Skip closing tags (tags that start with /)
+                    if (strpos($field_type, '/') === 0) {
+                        $this->log_error('Skipping closing tag: ' . $field_type);
+                        continue;
+                    }
+
+                    // Only include actual form input field types
+                    $valid_field_types = array(
+                        'text',
+                        'email',
+                        'tel',
+                        'textarea',
+                        'select',
+                        'checkbox',
+                        'radio',
+                        'number',
+                        'date',
+                        'file',
+                        'url',
+                        'password',
+                        'search',
+                        'range',
+                        'hidden'
+                    );
+
+                    if (in_array($field_type, $valid_field_types)) {
+                        // Get field label
+                        $label = $this->get_field_label($field_name, $field_type, $tag);
+                        $fields[$field_name] = $label;
+
+                        $this->log_error('Added field: ' . $field_name . ' => ' . $label);
+                    } else {
+                        $this->log_error('Skipping invalid field type: ' . $field_type);
+                    }
+                } else {
+                    $this->log_error('Invalid tag format: ' . $tag);
                 }
             }
         }
 
+        $this->log_error('Final fields array: ' . json_encode($fields));
         return $fields;
+    }
+
+    /**
+     * Parse CF7 tag properly, handling quoted strings
+     */
+    private function parse_cf7_tag($tag)
+    {
+        $parts = array();
+        $current = '';
+        $in_quotes = false;
+        $quote_char = '';
+
+        for ($i = 0; $i < strlen($tag); $i++) {
+            $char = $tag[$i];
+
+            if (($char === '"' || $char === "'") && !$in_quotes) {
+                $in_quotes = true;
+                $quote_char = $char;
+                continue;
+            }
+
+            if ($char === $quote_char && $in_quotes) {
+                $in_quotes = false;
+                $quote_char = '';
+                continue;
+            }
+
+            if ($char === ' ' && !$in_quotes) {
+                if (!empty($current)) {
+                    $parts[] = trim($current);
+                    $current = '';
+                }
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        if (!empty($current)) {
+            $parts[] = trim($current);
+        }
+
+        return $parts;
     }
 
     /**
@@ -659,6 +811,9 @@ class CF7_Propstack_Integration_Handler
         // Map form data to Propstack fields
         $contact_data = $this->map_form_data($form_data, $mappings);
 
+        // Debug: log the contact data before API call
+        $this->log_error('Contact data before API call: ' . json_encode($contact_data));
+
         if (empty($contact_data)) {
             $this->log_error('No valid contact data mapped for form ID: ' . $form_id);
             return;
@@ -739,27 +894,37 @@ class CF7_Propstack_Integration_Handler
         $contact_data = array();
         $custom_fields = array();
 
-        foreach ($mappings as $cf7_field => $propstack_field) {
-            if (isset($form_data[$cf7_field]) && !empty($form_data[$cf7_field])) {
-                $value = $form_data[$cf7_field];
+        // List of known checkbox fields (add more as needed)
+        $checkbox_fields = array('accept_contact');
 
-                // Handle array values (like checkboxes)
+        foreach ($mappings as $cf7_field => $propstack_field) {
+            // Special logic for newsletter
+            if ($propstack_field === 'newsletter') {
+                $value = isset($form_data[$cf7_field]) ? true : false;
+            } else if (in_array($cf7_field, $checkbox_fields)) {
+                $value = isset($form_data[$cf7_field]) ? true : false;
+            } else if (isset($form_data[$cf7_field]) && !empty($form_data[$cf7_field])) {
+                $value = $form_data[$cf7_field];
+                // Handle array values (like checkboxes with multiple values)
                 if (is_array($value)) {
                     $value = implode(', ', $value);
                 }
+            } else {
+                // If not set, skip
+                continue;
+            }
 
-                // Handle special field transformations
-                $value = $this->transform_field_value($propstack_field, $value);
+            // Handle special field transformations
+            $value = $this->transform_field_value($propstack_field, $value);
 
-                // Check if this is a custom field
-                if (strpos($propstack_field, 'custom_') === 0) {
-                    // Extract the actual custom field name (remove 'custom_' prefix)
-                    $custom_field_name = substr($propstack_field, 7);
-                    $custom_fields[$custom_field_name] = $value;
-                } else {
-                    // Standard field
-                    $contact_data[$propstack_field] = $value;
-                }
+            // Check if this is a custom field
+            if (strpos($propstack_field, 'custom_') === 0) {
+                // Extract the actual custom field name (remove 'custom_' prefix)
+                $custom_field_name = substr($propstack_field, 7);
+                $custom_fields[$custom_field_name] = $value;
+            } else {
+                // Standard field
+                $contact_data[$propstack_field] = $value;
             }
         }
 

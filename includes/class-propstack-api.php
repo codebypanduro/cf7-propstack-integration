@@ -359,13 +359,15 @@ class CF7_Propstack_API
             $sanitized['language'] = $data['language'];
         }
 
-        // Boolean fields
-        if (isset($data['newsletter'])) {
-            $sanitized['newsletter'] = (bool) $data['newsletter'];
-        }
 
         if (isset($data['accept_contact'])) {
             $sanitized['accept_contact'] = (bool) $data['accept_contact'];
+        }
+
+        if (isset($data['newsletter'])) {
+            $sanitized['newsletter_unsubscribed'] = (bool) !$data['newsletter'];
+            $sanitized['newsletter'] = (bool) $data['newsletter'];
+            $sanitized['property_mailing_wanted'] = (bool) $data['newsletter'];
         }
 
         // Integer fields
