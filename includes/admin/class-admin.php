@@ -265,8 +265,8 @@ class CF7_Propstack_Admin
      */
     private function get_form_title($form_id)
     {
-        $forms = WPCF7_ContactForm::find($form_id);
-        $form = is_array($forms) ? reset($forms) : $forms;
+        $form = WPCF7_ContactForm::get_instance($form_id);
+
         return ($form && is_object($form)) ? $form->title() : $form_id;
     }
 

@@ -28,6 +28,7 @@ class CF7_Propstack_Integration_Handler
         // Add custom tag for enabling integration per form
         add_action('wpcf7_init', array($this, 'add_custom_tag'));
 
+
         // Register custom property for CF7 forms
         add_filter('wpcf7_pre_construct_contact_form_properties', array($this, 'register_propstack_property'), 10, 2);
 
@@ -48,6 +49,29 @@ class CF7_Propstack_Integration_Handler
         // Add AJAX handlers for field mapping operations
         add_action('wp_ajax_save_field_mapping', array($this, 'save_field_mapping'));
         add_action('wp_ajax_delete_field_mapping_by_fields', array($this, 'delete_field_mapping_by_fields'));
+
+        // Instead of admin_enqueue_scripts, use wpcf7_admin_footer to inject panel.js for the CF7 form editor
+        add_action('wpcf7_admin_footer', function ($post) {
+
+            $src = CF7_PROPSTACK_PLUGIN_URL . 'assets/js/panel.js';
+            echo '<script src="' . esc_url($src) . '?v=' . CF7_PROPSTACK_VERSION . '"></script>';
+            // Output localization as a JS object
+            $l10n = array(
+                'deleteText' => __('Delete', 'cf7-propstack-integration'),
+                'selectBothText' => __('Please select both CF7 and Propstack fields.', 'cf7-propstack-integration'),
+                'addingText' => __('Adding...', 'cf7-propstack-integration'),
+                'mappingAddedText' => __('Mapping added successfully!', 'cf7-propstack-integration'),
+                'failedSaveText' => __('Failed to save mapping.', 'cf7-propstack-integration'),
+                'errorSaveText' => __('Error saving mapping. Please try again.', 'cf7-propstack-integration'),
+                'confirmDeleteText' => __('Are you sure you want to delete this mapping?', 'cf7-propstack-integration'),
+                'deletingText' => __('Deleting...', 'cf7-propstack-integration'),
+                'mappingDeletedText' => __('Mapping deleted successfully!', 'cf7-propstack-integration'),
+                'failedDeleteText' => __('Failed to delete mapping.', 'cf7-propstack-integration'),
+                'errorDeleteText' => __('Error deleting mapping. Please try again.', 'cf7-propstack-integration'),
+                'noMappingsText' => __('No field mappings configured for this form.', 'cf7-propstack-integration'),
+            );
+            echo '<script>window.cf7PropstackPanelL10n = ' . json_encode($l10n) . ';</script>';
+        });
     }
 
     /**
@@ -205,18 +229,20 @@ class CF7_Propstack_Integration_Handler
             <!-- Current Mappings Table -->
             <div class="mappings-list">
                 <h4><?php echo esc_html(__('Current Mappings', 'cf7-propstack-integration')); ?></h4>
-                <?php if (empty($current_mappings)): ?>
-                    <p><?php echo esc_html(__('No field mappings configured for this form.', 'cf7-propstack-integration')); ?></p>
-                <?php else: ?>
-                    <table class="wp-list-table widefat fixed striped">
-                        <thead>
-                            <tr>
-                                <th><?php echo esc_html(__('CF7 Field', 'cf7-propstack-integration')); ?></th>
-                                <th><?php echo esc_html(__('Propstack Field', 'cf7-propstack-integration')); ?></th>
-                                <th><?php echo esc_html(__('Actions', 'cf7-propstack-integration')); ?></th>
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <th><?php echo esc_html(__('CF7 Field', 'cf7-propstack-integration')); ?></th>
+                            <th><?php echo esc_html(__('Propstack Field', 'cf7-propstack-integration')); ?></th>
+                            <th><?php echo esc_html(__('Actions', 'cf7-propstack-integration')); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($current_mappings)): ?>
+                            <tr class="no-mappings-row">
+                                <td colspan="3"><?php echo esc_html(__('No field mappings configured for this form.', 'cf7-propstack-integration')); ?></td>
                             </tr>
-                        </thead>
-                        <tbody>
+                        <?php else: ?>
                             <?php foreach ($current_mappings as $cf7_field => $propstack_field): ?>
                                 <tr>
                                     <td><?php echo esc_html($cf7_fields[$cf7_field] ?? $cf7_field); ?></td>
@@ -231,230 +257,16 @@ class CF7_Propstack_Integration_Handler
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php endif; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
 
         <!-- Hidden form for AJAX nonce -->
         <input type="hidden" id="cf7_propstack_nonce" value="<?php echo wp_create_nonce('cf7_propstack_nonce'); ?>" />
         <input type="hidden" id="cf7_propstack_ajax_url" value="<?php echo admin_url('admin-ajax.php'); ?>" />
-
-        <!-- Inline JavaScript for field mapping functionality -->
-        <script type="text/javascript">
-            console.log("CF7 Propstack: Panel script loaded");
-
-            jQuery(document).ready(function($) {
-                console.log("CF7 Propstack: Panel jQuery ready");
-
-                // Function to update CF7 field dropdown to disable already mapped fields
-                function updateCF7FieldDropdown() {
-                    var mappedFields = [];
-                    $(".mappings-list tbody tr").each(function() {
-                        var cf7Field = $(this).find("td:first").text().trim();
-                        // Get the actual field name from the display text
-                        var fieldName = getFieldNameFromDisplayText(cf7Field);
-                        if (fieldName) {
-                            mappedFields.push(fieldName);
-                        }
-                    });
-
-                    $("#cf7_field_select option").each(function() {
-                        var optionValue = $(this).val();
-                        if (mappedFields.indexOf(optionValue) !== -1) {
-                            $(this).prop("disabled", true);
-                        } else {
-                            $(this).prop("disabled", false);
-                        }
-                    });
-                }
-
-                // Function to get field name from display text
-                function getFieldNameFromDisplayText(displayText) {
-                    // This is a simple mapping - you might need to adjust based on your field labels
-                    var fieldName = displayText.toLowerCase().replace(/\s+/g, '-');
-                    return fieldName;
-                }
-
-                // Function to get display text for CF7 field
-                function getCF7FieldDisplayText(fieldName) {
-                    var option = $("#cf7_field_select option[value=\"" + fieldName + "\"]");
-                    return option.length ? option.text() : fieldName;
-                }
-
-                // Function to get display text for Propstack field
-                function getPropstackFieldDisplayText(fieldName) {
-                    var option = $("#propstack_field_select option[value=\"" + fieldName + "\"]");
-                    return option.length ? option.text() : fieldName;
-                }
-
-                // Function to add new mapping row to table
-                function addMappingRow(cf7Field, propstackField) {
-                    var cf7DisplayText = getCF7FieldDisplayText(cf7Field);
-                    var propstackDisplayText = getPropstackFieldDisplayText(propstackField);
-                    var formId = $("#add_mapping").data("form-id");
-
-                    var newRow = $("<tr>").html(
-                        "<td>" + cf7DisplayText + "</td>" +
-                        "<td>" + propstackDisplayText + "</td>" +
-                        "<td>" +
-                        "<button type=\"button\" class=\"button button-small delete-mapping\" " +
-                        "data-form-id=\"" + formId + "\" " +
-                        "data-cf7-field=\"" + cf7Field + "\" " +
-                        "data-propstack-field=\"" + propstackField + "\">" +
-                        "<?php echo esc_js(__('Delete', 'cf7-propstack-integration')); ?>" +
-                        "</button>" +
-                        "</td>"
-                    );
-
-                    $(".mappings-list tbody").append(newRow);
-
-                    // Clear the form
-                    $("#cf7_field_select").val("");
-                    $("#propstack_field_select").val("");
-
-                    // Update dropdown to disable newly mapped field
-                    updateCF7FieldDropdown();
-                }
-
-                // Initialize dropdown state
-                updateCF7FieldDropdown();
-
-                // Test if elements exist
-                console.log("CF7 Propstack: Add mapping button exists:", $("#add_mapping").length);
-                console.log("CF7 Propstack: Delete mapping buttons exist:", $(".delete-mapping").length);
-
-                // Handle add mapping button
-                $(document).on("click", "#add_mapping", function(e) {
-                    console.log("CF7 Propstack: Add mapping button clicked");
-                    e.preventDefault();
-
-                    var formId = $(this).data("form-id");
-                    var cf7Field = $("#cf7_field_select").val();
-                    var propstackField = $("#propstack_field_select").val();
-                    var nonce = $("#cf7_propstack_nonce").val();
-                    var ajaxUrl = $("#cf7_propstack_ajax_url").val();
-
-                    console.log("CF7 Propstack: Form data - formId:", formId, "cf7Field:", cf7Field, "propstackField:", propstackField);
-
-                    if (!cf7Field || !propstackField) {
-                        alert("<?php echo esc_js(__('Please select both CF7 and Propstack fields.', 'cf7-propstack-integration')); ?>");
-                        return;
-                    }
-
-                    var button = $(this);
-                    var originalText = button.text();
-                    button.text("<?php echo esc_js(__('Adding...', 'cf7-propstack-integration')); ?>").prop("disabled", true);
-
-                    console.log("CF7 Propstack: Sending AJAX request");
-
-                    $.ajax({
-                        url: ajaxUrl,
-                        type: "POST",
-                        data: {
-                            action: "save_field_mapping",
-                            form_id: formId,
-                            cf7_field: cf7Field,
-                            propstack_field: propstackField,
-                            nonce: nonce
-                        },
-                        success: function(response) {
-                            console.log("CF7 Propstack: AJAX success response:", response);
-                            if (response.success) {
-                                // Add the new mapping row dynamically instead of reloading
-                                addMappingRow(cf7Field, propstackField);
-
-                                // Show success message
-                                showMessage("<?php echo esc_js(__('Mapping added successfully!', 'cf7-propstack-integration')); ?>", "success");
-                            } else {
-                                alert(response.data || "<?php echo esc_js(__('Failed to save mapping.', 'cf7-propstack-integration')); ?>");
-                            }
-                        },
-                        error: function(xhr, status, error) {
-                            console.log("CF7 Propstack: AJAX error:", status, error);
-                            alert("<?php echo esc_js(__('Error saving mapping. Please try again.', 'cf7-propstack-integration')); ?>");
-                        },
-                        complete: function() {
-                            button.text(originalText).prop("disabled", false);
-                        }
-                    });
-                });
-
-                // Handle delete mapping buttons
-                $(document).on("click", ".delete-mapping", function(e) {
-                    console.log("CF7 Propstack: Delete mapping button clicked");
-                    e.preventDefault();
-
-                    if (!confirm("<?php echo esc_js(__('Are you sure you want to delete this mapping?', 'cf7-propstack-integration')); ?>")) {
-                        return;
-                    }
-
-                    var formId = $(this).data("form-id");
-                    var cf7Field = $(this).data("cf7-field");
-                    var propstackField = $(this).data("propstack-field");
-                    var nonce = $("#cf7_propstack_nonce").val();
-                    var ajaxUrl = $("#cf7_propstack_ajax_url").val();
-                    var button = $(this);
-
-                    console.log("CF7 Propstack: Delete data - formId:", formId, "cf7Field:", cf7Field, "propstackField:", propstackField);
-
-                    button.prop("disabled", true).text("<?php echo esc_js(__('Deleting...', 'cf7-propstack-integration')); ?>");
-
-                    $.ajax({
-                        url: ajaxUrl,
-                        type: "POST",
-                        data: {
-                            action: "delete_field_mapping_by_fields",
-                            form_id: formId,
-                            cf7_field: cf7Field,
-                            propstack_field: propstackField,
-                            nonce: nonce
-                        },
-                        success: function(response) {
-                            console.log("CF7 Propstack: Delete AJAX success response:", response);
-                            if (response.success) {
-                                button.closest("tr").fadeOut(function() {
-                                    $(this).remove();
-                                    if ($(".mappings-list tbody tr").length === 0) {
-                                        $(".mappings-list").html("<p><?php echo esc_js(__('No field mappings configured for this form.', 'cf7-propstack-integration')); ?></p>");
-                                    }
-                                    // Update dropdown to re-enable deleted field
-                                    updateCF7FieldDropdown();
-                                });
-
-                                // Show success message
-                                showMessage("<?php echo esc_js(__('Mapping deleted successfully!', 'cf7-propstack-integration')); ?>", "success");
-                            } else {
-                                alert(response.data || "<?php echo esc_js(__('Failed to delete mapping.', 'cf7-propstack-integration')); ?>");
-                            }
-                        },
-                        error: function(xhr, status, error) {
-                            console.log("CF7 Propstack: Delete AJAX error:", status, error);
-                            alert("<?php echo esc_js(__('Error deleting mapping. Please try again.', 'cf7-propstack-integration')); ?>");
-                        },
-                        complete: function() {
-                            button.prop("disabled", false).text("<?php echo esc_js(__('Delete', 'cf7-propstack-integration')); ?>");
-                        }
-                    });
-                });
-
-                // Function to show success/error messages
-                function showMessage(message, type) {
-                    var messageClass = type === 'success' ? 'success' : 'error';
-                    var messageHtml = '<div class="cf7-propstack-message ' + messageClass + '">' + message + '</div>';
-                    $(".cf7-propstack-mappings-section").prepend(messageHtml);
-
-                    setTimeout(function() {
-                        $(".cf7-propstack-message").fadeOut(function() {
-                            $(this).remove();
-                        });
-                    }, 3000);
-                }
-
-                console.log("CF7 Propstack: Panel event handlers set up successfully");
-            });
-        </script>
+        <!-- The JavaScript for this panel is now loaded via admin.js -->
     <?php
     }
 
@@ -1107,6 +919,7 @@ class CF7_Propstack_Integration_Handler
     {
         global $post;
 
+
         // Debug: Check if we're on the right page
         error_log('CF7 Propstack: add_admin_scripts called. Post type: ' . ($post ? $post->post_type : 'no post'));
 
@@ -1168,8 +981,41 @@ class CF7_Propstack_Integration_Handler
                         success: function(response) {
                             console.log("CF7 Propstack: AJAX success response:", response);
                             if (response.success) {
-                                // Reload the page to show updated mappings
-                                location.reload();
+                                // Check if this is the first mapping being added
+                                var hasNoMappingsRow = $(".no-mappings-row").length > 0;
+
+                                if (hasNoMappingsRow) {
+                                    // Remove the no-mappings row and add the new mapping row
+                                    $(".no-mappings-row").remove();
+
+                                    // Create the new row
+                                    var cf7FieldLabel = $("#cf7_field_select option:selected").text();
+                                    var propstackFieldLabel = $("#propstack_field_select option:selected").text();
+
+                                    var newRow = '<tr>' +
+                                        '<td>' + cf7FieldLabel + '</td>' +
+                                        '<td>' + propstackFieldLabel + '</td>' +
+                                        '<td>' +
+                                        '<button type="button" class="button button-small delete-mapping" ' +
+                                        'data-form-id="' + formId + '" ' +
+                                        'data-cf7-field="' + cf7Field + '" ' +
+                                        'data-propstack-field="' + propstackField + '">' +
+                                        '<?php echo esc_js(__('Delete', 'cf7-propstack-integration')); ?>' +
+                                        '</button>' +
+                                        '</td>' +
+                                        '</tr>';
+
+                                    $(".mappings-list tbody").append(newRow);
+
+                                    // Clear the form
+                                    $("#cf7_field_select, #propstack_field_select").val("");
+
+                                    // Show success message
+                                    alert("<?php echo esc_js(__('Mapping added successfully!', 'cf7-propstack-integration')); ?>");
+                                } else {
+                                    // Reload the page to show updated mappings
+                                    location.reload();
+                                }
                             } else {
                                 alert(response.data || "<?php echo esc_js(__('Failed to save mapping.', 'cf7-propstack-integration')); ?>");
                             }
