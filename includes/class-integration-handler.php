@@ -54,6 +54,7 @@ class CF7_Propstack_Integration_Handler
         add_action('wp_ajax_refresh_properties', array($this, 'refresh_properties'));
         add_action('wp_ajax_refresh_client_sources', array($this, 'refresh_client_sources'));
         add_action('wp_ajax_test_properties_api', array($this, 'test_properties_api'));
+        add_action('wp_ajax_clear_propstack_cache', array($this, 'clear_propstack_cache'));
 
         // Instead of admin_enqueue_scripts, use wpcf7_admin_footer to inject panel.js for the CF7 form editor
         add_action('wpcf7_admin_footer', function ($post) {
@@ -74,6 +75,16 @@ class CF7_Propstack_Integration_Handler
                 'failedDeleteText' => __('Failed to delete mapping.', 'cf7-propstack-integration'),
                 'errorDeleteText' => __('Error deleting mapping. Please try again.', 'cf7-propstack-integration'),
                 'noMappingsText' => __('No field mappings configured for this form.', 'cf7-propstack-integration'),
+                'refreshingText' => __('Refreshing...', 'cf7-propstack-integration'),
+                'testingText' => __('Testing...', 'cf7-propstack-integration'),
+                'propertiesRefreshedText' => __('Properties refreshed successfully!', 'cf7-propstack-integration'),
+                'clientSourcesRefreshedText' => __('Client sources refreshed successfully!', 'cf7-propstack-integration'),
+                'failedRefreshPropertiesText' => __('Failed to refresh properties.', 'cf7-propstack-integration'),
+                'failedRefreshClientSourcesText' => __('Failed to refresh client sources.', 'cf7-propstack-integration'),
+                'testFailedText' => __('Test failed.', 'cf7-propstack-integration'),
+                'missingNonceText' => __('Missing nonce or AJAX URL. Please refresh the page.', 'cf7-propstack-integration'),
+                'errorRefreshText' => __('Error refreshing. Please try again.', 'cf7-propstack-integration'),
+                'errorTestText' => __('Error testing API. Please try again.', 'cf7-propstack-integration'),
             );
             echo '<script>window.cf7PropstackPanelL10n = ' . json_encode($l10n) . ';</script>';
         });
@@ -173,7 +184,7 @@ class CF7_Propstack_Integration_Handler
 
         // Display debug info as an admin notice for troubleshooting
         if (current_user_can('manage_options')) {
-            echo '<div class="notice notice-info" style="margin: 10px 0;"><p><strong>Debug Info:</strong> Properties: ' . count($properties) . ', Client Sources: ' . count($client_sources) . ', API Key: ' . ($this->api->is_api_key_configured() ? 'Configured' : 'Not Configured') . '</p></div>';
+            echo '<div class="notice notice-info" style="margin: 10px 0;"><p><strong>Debug Info:</strong> Properties: ' . count($properties) . ', Client Sources: ' . count($client_sources) . ', API Key: ' . ($this->api->is_api_key_configured() ? 'Configured' : 'Not Configured') . ' <button type="button" id="clear_propstack_cache" class="button button-secondary" style="margin-left: 10px;">Clear Cache</button></p></div>';
         }
 
         $description = sprintf(
@@ -262,6 +273,9 @@ class CF7_Propstack_Integration_Handler
                             </button>
                             <button type="button" id="test_properties_api" class="button button-secondary" style="margin-left: 5px;">
                                 <?php echo esc_html(__('Test API', 'cf7-propstack-integration')); ?>
+                            </button>
+                            <button type="button" onclick="alert('JavaScript is working! Nonce: ' + jQuery('#cf7_propstack_nonce').val() + ', AJAX URL: ' + jQuery('#cf7_propstack_ajax_url').val()); console.log('Button test:', jQuery('#test_properties_api').length);" class="button button-secondary" style="margin-left: 5px;">
+                                <?php echo esc_html(__('Test JS', 'cf7-propstack-integration')); ?>
                             </button>
                             <p class="description">
                                 <?php echo esc_html(__('Select a property to associate with the task (optional).', 'cf7-propstack-integration')); ?>
@@ -1185,316 +1199,8 @@ class CF7_Propstack_Integration_Handler
      */
     public function add_admin_scripts()
     {
-        global $post;
-
-
-        // Debug: Check if we're on the right page
-        error_log('CF7 Propstack: add_admin_scripts called. Post type: ' . ($post ? $post->post_type : 'no post'));
-
-        // Only add scripts on Contact Form 7 edit pages
-        if (!$post || $post->post_type !== 'wpcf7_contact_form') {
-            error_log('CF7 Propstack: Not on CF7 edit page, skipping script');
-            return;
-        }
-
-        error_log('CF7 Propstack: Adding scripts for CF7 edit page');
-
-        // Add a simple test output first
-        echo "<!-- CF7 Propstack: Script method called -->\n";
-    ?>
-        <script type="text/javascript">
-            console.log("CF7 Propstack: Script loaded successfully");
-
-            jQuery(document).ready(function($) {
-                console.log("CF7 Propstack: jQuery ready, setting up event handlers");
-
-                // Test if elements exist
-                console.log("CF7 Propstack: Add mapping button exists:", $("#add_mapping").length);
-                console.log("CF7 Propstack: Delete mapping buttons exist:", $(".delete-mapping").length);
-
-                // Handle add mapping button
-                $(document).on("click", "#add_mapping", function(e) {
-                    console.log("CF7 Propstack: Add mapping button clicked");
-                    e.preventDefault();
-
-                    var formId = $(this).data("form-id");
-                    var cf7Field = $("#cf7_field_select").val();
-                    var propstackField = $("#propstack_field_select").val();
-                    var nonce = $("#cf7_propstack_nonce").val();
-                    var ajaxUrl = $("#cf7_propstack_ajax_url").val();
-
-                    console.log("CF7 Propstack: Form data - formId:", formId, "cf7Field:", cf7Field, "propstackField:", propstackField);
-
-                    if (!cf7Field || !propstackField) {
-                        alert("<?php echo esc_js(__('Please select both CF7 and Propstack fields.', 'cf7-propstack-integration')); ?>");
-                        return;
-                    }
-
-                    var button = $(this);
-                    var originalText = button.text();
-                    button.text("<?php echo esc_js(__('Adding...', 'cf7-propstack-integration')); ?>").prop("disabled", true);
-
-                    console.log("CF7 Propstack: Sending AJAX request");
-
-                    $.ajax({
-                        url: ajaxUrl,
-                        type: "POST",
-                        data: {
-                            action: "save_field_mapping",
-                            form_id: formId,
-                            cf7_field: cf7Field,
-                            propstack_field: propstackField,
-                            nonce: nonce
-                        },
-                        success: function(response) {
-                            console.log("CF7 Propstack: AJAX success response:", response);
-                            if (response.success) {
-                                // Check if this is the first mapping being added
-                                var hasNoMappingsRow = $(".no-mappings-row").length > 0;
-
-                                if (hasNoMappingsRow) {
-                                    // Remove the no-mappings row and add the new mapping row
-                                    $(".no-mappings-row").remove();
-
-                                    // Create the new row
-                                    var cf7FieldLabel = $("#cf7_field_select option:selected").text();
-                                    var propstackFieldLabel = $("#propstack_field_select option:selected").text();
-
-                                    var newRow = '<tr>' +
-                                        '<td>' + cf7FieldLabel + '</td>' +
-                                        '<td>' + propstackFieldLabel + '</td>' +
-                                        '<td>' +
-                                        '<button type="button" class="button button-small delete-mapping" ' +
-                                        'data-form-id="' + formId + '" ' +
-                                        'data-cf7-field="' + cf7Field + '" ' +
-                                        'data-propstack-field="' + propstackField + '">' +
-                                        '<?php echo esc_js(__('Delete', 'cf7-propstack-integration')); ?>' +
-                                        '</button>' +
-                                        '</td>' +
-                                        '</tr>';
-
-                                    $(".mappings-list tbody").append(newRow);
-
-                                    // Clear the form
-                                    $("#cf7_field_select, #propstack_field_select").val("");
-
-                                    // Show success message
-                                    alert("<?php echo esc_js(__('Mapping added successfully!', 'cf7-propstack-integration')); ?>");
-                                } else {
-                                    // Reload the page to show updated mappings
-                                    location.reload();
-                                }
-                            } else {
-                                alert(response.data || "<?php echo esc_js(__('Failed to save mapping.', 'cf7-propstack-integration')); ?>");
-                            }
-                        },
-                        error: function(xhr, status, error) {
-                            console.log("CF7 Propstack: AJAX error:", status, error);
-                            alert("<?php echo esc_js(__('Error saving mapping. Please try again.', 'cf7-propstack-integration')); ?>");
-                        },
-                        complete: function() {
-                            button.text(originalText).prop("disabled", false);
-                        }
-                    });
-                });
-
-                // Handle delete mapping buttons
-                $(document).on("click", ".delete-mapping", function(e) {
-                    console.log("CF7 Propstack: Delete mapping button clicked");
-                    e.preventDefault();
-
-                    if (!confirm("<?php echo esc_js(__('Are you sure you want to delete this mapping?', 'cf7-propstack-integration')); ?>")) {
-                        return;
-                    }
-
-                    var formId = $(this).data("form-id");
-                    var cf7Field = $(this).data("cf7-field");
-                    var propstackField = $(this).data("propstack-field");
-                    var nonce = $("#cf7_propstack_nonce").val();
-                    var ajaxUrl = $("#cf7_propstack_ajax_url").val();
-                    var button = $(this);
-
-                    console.log("CF7 Propstack: Delete data - formId:", formId, "cf7Field:", cf7Field, "propstackField:", propstackField);
-
-                    button.prop("disabled", true).text("<?php echo esc_js(__('Deleting...', 'cf7-propstack-integration')); ?>");
-
-                    $.ajax({
-                        url: ajaxUrl,
-                        type: "POST",
-                        data: {
-                            action: "delete_field_mapping_by_fields",
-                            form_id: formId,
-                            cf7_field: cf7Field,
-                            propstack_field: propstackField,
-                            nonce: nonce
-                        },
-                        success: function(response) {
-                            console.log("CF7 Propstack: Delete AJAX success response:", response);
-                            if (response.success) {
-                                button.closest("tr").fadeOut(function() {
-                                    $(this).remove();
-                                    if ($(".mappings-list tbody tr").length === 0) {
-                                        $(".mappings-list").html("<p><?php echo esc_js(__('No field mappings configured for this form.', 'cf7-propstack-integration')); ?></p>");
-                                    }
-                                });
-                            } else {
-                                alert(response.data || "<?php echo esc_js(__('Failed to delete mapping.', 'cf7-propstack-integration')); ?>");
-                            }
-                        },
-                        error: function(xhr, status, error) {
-                            console.log("CF7 Propstack: Delete AJAX error:", status, error);
-                            alert("<?php echo esc_js(__('Error deleting mapping. Please try again.', 'cf7-propstack-integration')); ?>");
-                        },
-                        complete: function() {
-                            button.prop("disabled", false).text("<?php echo esc_js(__('Delete', 'cf7-propstack-integration')); ?>");
-                        }
-                    });
-                });
-
-                // Handle refresh properties button
-                $(document).on("click", "#refresh_properties", function(e) {
-                    e.preventDefault();
-                    
-                    var button = $(this);
-                    var originalText = button.text();
-                    button.text("<?php echo esc_js(__('Refreshing...', 'cf7-propstack-integration')); ?>").prop("disabled", true);
-                    
-                    var nonce = $("#cf7_propstack_nonce").val();
-                    var ajaxUrl = $("#cf7_propstack_ajax_url").val();
-                    
-                    $.ajax({
-                        url: ajaxUrl,
-                        type: "POST",
-                        data: {
-                            action: "refresh_properties",
-                            nonce: nonce
-                        },
-                        success: function(response) {
-                            if (response.success && response.data.properties) {
-                                var select = $("#wpcf7-propstack-property-id");
-                                var selectedValue = select.val();
-                                
-                                // Clear existing options except the first one
-                                select.find('option:not(:first)').remove();
-                                
-                                // Add new options
-                                $.each(response.data.properties, function(index, property) {
-                                    var title = property.title || property.name || 'Property #' + property.id;
-                                    select.append('<option value="' + property.id + '">' + title + '</option>');
-                                });
-                                
-                                // Restore selected value if it still exists
-                                select.val(selectedValue);
-                                
-                                alert(response.data.message || "<?php echo esc_js(__('Properties refreshed successfully!', 'cf7-propstack-integration')); ?>");
-                            } else {
-                                alert(response.data || "<?php echo esc_js(__('Failed to refresh properties.', 'cf7-propstack-integration')); ?>");
-                            }
-                        },
-                        error: function() {
-                            alert("<?php echo esc_js(__('Error refreshing properties. Please try again.', 'cf7-propstack-integration')); ?>");
-                        },
-                        complete: function() {
-                            button.text(originalText).prop("disabled", false);
-                        }
-                    });
-                });
-
-                // Handle refresh client sources button
-                $(document).on("click", "#refresh_client_sources", function(e) {
-                    e.preventDefault();
-                    
-                    var button = $(this);
-                    var originalText = button.text();
-                    button.text("<?php echo esc_js(__('Refreshing...', 'cf7-propstack-integration')); ?>").prop("disabled", true);
-                    
-                    var nonce = $("#cf7_propstack_nonce").val();
-                    var ajaxUrl = $("#cf7_propstack_ajax_url").val();
-                    
-                    $.ajax({
-                        url: ajaxUrl,
-                        type: "POST",
-                        data: {
-                            action: "refresh_client_sources",
-                            nonce: nonce
-                        },
-                        success: function(response) {
-                            if (response.success && response.data.client_sources) {
-                                var select = $("#wpcf7-propstack-client-source-id");
-                                var selectedValue = select.val();
-                                
-                                // Clear existing options except the first one
-                                select.find('option:not(:first)').remove();
-                                
-                                // Add new options
-                                $.each(response.data.client_sources, function(index, source) {
-                                    var name = source.name || source.title || 'Source #' + source.id;
-                                    select.append('<option value="' + source.id + '">' + name + '</option>');
-                                });
-                                
-                                // Restore selected value if it still exists
-                                select.val(selectedValue);
-                                
-                                alert(response.data.message || "<?php echo esc_js(__('Client sources refreshed successfully!', 'cf7-propstack-integration')); ?>");
-                            } else {
-                                alert(response.data || "<?php echo esc_js(__('Failed to refresh client sources.', 'cf7-propstack-integration')); ?>");
-                            }
-                        },
-                        error: function() {
-                            alert("<?php echo esc_js(__('Error refreshing client sources. Please try again.', 'cf7-propstack-integration')); ?>");
-                        },
-                        complete: function() {
-                            button.text(originalText).prop("disabled", false);
-                        }
-                    });
-                });
-
-                // Handle test properties API button
-                $(document).on("click", "#test_properties_api", function(e) {
-                    e.preventDefault();
-                    
-                    var button = $(this);
-                    var originalText = button.text();
-                    button.text("<?php echo esc_js(__('Testing...', 'cf7-propstack-integration')); ?>").prop("disabled", true);
-                    
-                    var nonce = $("#cf7_propstack_nonce").val();
-                    var ajaxUrl = $("#cf7_propstack_ajax_url").val();
-                    
-                    $.ajax({
-                        url: ajaxUrl,
-                        type: "POST",
-                        data: {
-                            action: "test_properties_api",
-                            nonce: nonce
-                        },
-                        success: function(response) {
-                            if (response.success && response.data.debug_info) {
-                                var info = response.data.debug_info;
-                                var message = "API Test Results:\n\n";
-                                message += "API Key Configured: " + (info.api_key_configured ? "Yes" : "No") + "\n";
-                                message += "Response Type: " + info.response_type + "\n";
-                                message += "Response Count: " + info.response_count + "\n";
-                                message += "Raw Response: " + JSON.stringify(info.api_response, null, 2);
-                                
-                                alert(message);
-                            } else {
-                                alert(response.data || "<?php echo esc_js(__('Test failed.', 'cf7-propstack-integration')); ?>");
-                            }
-                        },
-                        error: function() {
-                            alert("<?php echo esc_js(__('Error testing API. Please try again.', 'cf7-propstack-integration')); ?>");
-                        },
-                        complete: function() {
-                            button.text(originalText).prop("disabled", false);
-                        }
-                    });
-                });
-
-                console.log("CF7 Propstack: Event handlers set up successfully");
-            });
-        </script>
-<?php
-        error_log('CF7 Propstack: Scripts added successfully');
+        // This method is kept for backward compatibility but functionality moved to panel.js
+        // to avoid conflicts with existing JavaScript
     }
 
     /**
@@ -1632,6 +1338,9 @@ class CF7_Propstack_Integration_Handler
             wp_die(__('Unauthorized', 'cf7-propstack-integration'));
         }
 
+        // Clear cache first to force fresh API call
+        delete_transient('cf7_propstack_properties');
+
         // Test API call directly
         $api_response = $this->api->get_properties();
         
@@ -1641,11 +1350,33 @@ class CF7_Propstack_Integration_Handler
             'api_response' => $api_response,
             'response_type' => gettype($api_response),
             'response_count' => is_array($api_response) ? count($api_response) : 0,
+            'cache_cleared' => true,
         );
 
         wp_send_json_success(array(
             'debug_info' => $debug_info,
             'message' => __('API test completed. Check the debug information.', 'cf7-propstack-integration')
+        ));
+    }
+
+    /**
+     * Clear Propstack cache via AJAX
+     */
+    public function clear_propstack_cache()
+    {
+        check_ajax_referer('cf7_propstack_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Unauthorized', 'cf7-propstack-integration'));
+        }
+
+        // Clear all Propstack-related transients
+        delete_transient('cf7_propstack_properties');
+        delete_transient('cf7_propstack_client_sources');
+        delete_transient('cf7_propstack_custom_fields');
+
+        wp_send_json_success(array(
+            'message' => __('All Propstack cache cleared successfully.', 'cf7-propstack-integration')
         ));
     }
 }
