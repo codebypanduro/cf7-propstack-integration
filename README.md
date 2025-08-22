@@ -1,10 +1,12 @@
 ## 📦 Download Latest Release
 
-**Version 1.2.2** - [Download ZIP](https://github.com/codebypanduro/cf7-propstack-integration/releases/download/v1.2.2/cf7-propstack-integration.zip)
+**Version 1.3.0** - [Download ZIP](https://github.com/codebypanduro/cf7-propstack-integration/releases/download/v1.3.0/cf7-propstack-integration.zip)
 
-[View all releases](https://github.com/codebypanduro/cf7-propstack-integration/releases/tag/v1.2.2) | [Installation Guide](#installation)
+[View all releases](https://github.com/codebypanduro/cf7-propstack-integration/releases/tag/v1.3.0) | [Installation Guide](#installation)
 
 ---
+
+
 
 
 
