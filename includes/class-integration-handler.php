@@ -50,6 +50,10 @@ class CF7_Propstack_Integration_Handler
         add_action('wp_ajax_save_field_mapping', array($this, 'save_field_mapping'));
         add_action('wp_ajax_delete_field_mapping_by_fields', array($this, 'delete_field_mapping_by_fields'));
 
+        // Add AJAX handlers for refreshing properties and client sources
+        add_action('wp_ajax_refresh_properties', array($this, 'refresh_properties'));
+        add_action('wp_ajax_refresh_client_sources', array($this, 'refresh_client_sources'));
+
         // Instead of admin_enqueue_scripts, use wpcf7_admin_footer to inject panel.js for the CF7 form editor
         add_action('wpcf7_admin_footer', function ($post) {
 
@@ -98,6 +102,9 @@ class CF7_Propstack_Integration_Handler
             array(
                 'enabled' => false,
                 'field_mappings' => array(),
+                'create_task' => false,
+                'property_id' => '',
+                'client_source_id' => '',
             )
         );
 
@@ -150,6 +157,12 @@ class CF7_Propstack_Integration_Handler
         // Get Propstack fields
         $propstack_fields = $this->get_propstack_fields();
 
+        // Get properties for task creation dropdown
+        $properties = $this->get_cached_properties();
+
+        // Get client sources for task creation dropdown
+        $client_sources = $this->get_cached_client_sources();
+
         $description = sprintf(
             esc_html(
                 /* translators: %s: link labeled 'Propstack integration' */
@@ -182,6 +195,78 @@ class CF7_Propstack_Integration_Handler
                                     <?php echo esc_html(__('Enable Propstack integration for this form', 'cf7-propstack-integration')); ?>
                                 </label>
                             </fieldset>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </fieldset>
+
+        <!-- Task Creation Configuration -->
+        <fieldset class="cf7-propstack-task-config">
+            <legend><?php echo esc_html(__('Task Creation Settings', 'cf7-propstack-integration')); ?></legend>
+            
+            <table class="form-table" role="presentation">
+                <tbody>
+                    <tr>
+                        <th scope="row">
+                            <?php echo esc_html(__('Create Task on Signup', 'cf7-propstack-integration')); ?>
+                        </th>
+                        <td>
+                            <fieldset>
+                                <legend class="screen-reader-text">
+                                    <?php echo esc_html(__('Create Task on Signup', 'cf7-propstack-integration')); ?>
+                                </legend>
+                                <label for="wpcf7-propstack-create-task">
+                                    <input type="checkbox"
+                                        name="wpcf7-propstack[create_task]"
+                                        id="wpcf7-propstack-create-task"
+                                        value="1"
+                                        <?php checked($prop['create_task']); ?> />
+                                    <?php echo esc_html(__('Create a task in Propstack after successful contact creation', 'cf7-propstack-integration')); ?>
+                                </label>
+                            </fieldset>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">
+                            <?php echo esc_html(__('Property', 'cf7-propstack-integration')); ?>
+                        </th>
+                        <td>
+                            <select name="wpcf7-propstack[property_id]" id="wpcf7-propstack-property-id">
+                                <option value=""><?php echo esc_html(__('Select a property (optional)', 'cf7-propstack-integration')); ?></option>
+                                <?php foreach ($properties as $property): ?>
+                                    <option value="<?php echo esc_attr($property['id']); ?>" <?php selected($prop['property_id'], $property['id']); ?>>
+                                        <?php echo esc_html($property['title'] ?? $property['name'] ?? 'Property #' . $property['id']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="button" id="refresh_properties" class="button button-secondary" style="margin-left: 10px;">
+                                <?php echo esc_html(__('Refresh', 'cf7-propstack-integration')); ?>
+                            </button>
+                            <p class="description">
+                                <?php echo esc_html(__('Select a property to associate with the task (optional).', 'cf7-propstack-integration')); ?>
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">
+                            <?php echo esc_html(__('Client Source', 'cf7-propstack-integration')); ?>
+                        </th>
+                        <td>
+                            <select name="wpcf7-propstack[client_source_id]" id="wpcf7-propstack-client-source-id">
+                                <option value=""><?php echo esc_html(__('Select a client source (optional)', 'cf7-propstack-integration')); ?></option>
+                                <?php foreach ($client_sources as $source): ?>
+                                    <option value="<?php echo esc_attr($source['id']); ?>" <?php selected($prop['client_source_id'], $source['id']); ?>>
+                                        <?php echo esc_html($source['name'] ?? $source['title'] ?? 'Source #' . $source['id']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="button" id="refresh_client_sources" class="button button-secondary" style="margin-left: 10px;">
+                                <?php echo esc_html(__('Refresh', 'cf7-propstack-integration')); ?>
+                            </button>
+                            <p class="description">
+                                <?php echo esc_html(__('Select a client source to associate with the task (optional).', 'cf7-propstack-integration')); ?>
+                            </p>
                         </td>
                     </tr>
                 </tbody>
@@ -528,6 +613,70 @@ class CF7_Propstack_Integration_Handler
     }
 
     /**
+     * Get cached properties or fetch from API
+     */
+    private function get_cached_properties()
+    {
+        // Check cache first
+        $cached_properties = get_transient('cf7_propstack_properties');
+        if ($cached_properties !== false) {
+            return $cached_properties;
+        }
+
+        // Fetch from API if cache is empty
+        $properties = array();
+        if ($this->api) {
+            try {
+                $api_properties = $this->api->get_properties();
+
+                if (!empty($api_properties) && is_array($api_properties)) {
+                    $properties = $api_properties;
+                }
+
+                // Cache the results for 1 hour
+                set_transient('cf7_propstack_properties', $properties, HOUR_IN_SECONDS);
+            } catch (Exception $e) {
+                // Cache empty array on error to prevent repeated API calls
+                set_transient('cf7_propstack_properties', array(), 5 * MINUTE_IN_SECONDS);
+            }
+        }
+
+        return $properties;
+    }
+
+    /**
+     * Get cached client sources or fetch from API
+     */
+    private function get_cached_client_sources()
+    {
+        // Check cache first
+        $cached_sources = get_transient('cf7_propstack_client_sources');
+        if ($cached_sources !== false) {
+            return $cached_sources;
+        }
+
+        // Fetch from API if cache is empty
+        $client_sources = array();
+        if ($this->api) {
+            try {
+                $api_sources = $this->api->get_contact_sources();
+
+                if (!empty($api_sources) && is_array($api_sources)) {
+                    $client_sources = $api_sources;
+                }
+
+                // Cache the results for 1 hour
+                set_transient('cf7_propstack_client_sources', $client_sources, HOUR_IN_SECONDS);
+            } catch (Exception $e) {
+                // Cache empty array on error to prevent repeated API calls
+                set_transient('cf7_propstack_client_sources', array(), 5 * MINUTE_IN_SECONDS);
+            }
+        }
+
+        return $client_sources;
+    }
+
+    /**
      * Save Propstack settings when form is saved
      */
     public function save_propstack_settings($contact_form)
@@ -541,6 +690,9 @@ class CF7_Propstack_Integration_Handler
             array(
                 'enabled' => false,
                 'field_mappings' => array(),
+                'create_task' => false,
+                'property_id' => '',
+                'client_source_id' => '',
             )
         );
 
@@ -598,10 +750,18 @@ class CF7_Propstack_Integration_Handler
         }
 
         // Create or update contact
+        $contact_id = null;
         if ($existing_contact) {
             $result = $this->api->update_contact($existing_contact['id'], $contact_data);
+            $contact_id = $existing_contact['id'];
         } else {
             $result = $this->api->create_contact($contact_data);
+            $contact_id = $result;
+        }
+
+        // Create task if enabled and contact creation/update was successful
+        if ($contact_id && $this->should_create_task($contact_form)) {
+            $this->create_task_for_contact($contact_form, $contact_id);
         }
     }
 
@@ -619,6 +779,47 @@ class CF7_Propstack_Integration_Handler
         // Check for form-specific setting
         $propstack_prop = $contact_form->prop('propstack');
         return !empty($propstack_prop['enabled']);
+    }
+
+    /**
+     * Check if task creation is enabled for a form
+     */
+    private function should_create_task($contact_form)
+    {
+        $propstack_prop = $contact_form->prop('propstack');
+        return !empty($propstack_prop['create_task']);
+    }
+
+    /**
+     * Create a task for a contact in Propstack
+     */
+    private function create_task_for_contact($contact_form, $contact_id)
+    {
+        $propstack_prop = $contact_form->prop('propstack');
+        
+        $task_data = array(
+            'client_ids' => array(intval($contact_id))
+        );
+
+        // Add property ID if configured
+        if (!empty($propstack_prop['property_id'])) {
+            $task_data['property_ids'] = array(intval($propstack_prop['property_id']));
+        }
+
+        // Add client source ID if configured
+        if (!empty($propstack_prop['client_source_id'])) {
+            $task_data['client_source_id'] = intval($propstack_prop['client_source_id']);
+        }
+
+        // Create the task
+        $task_id = $this->api->create_task($task_data);
+        
+        if ($task_id) {
+            // Log success if debug mode is enabled
+            if ($this->api) {
+                error_log('[CF7 Propstack] Task created successfully for contact ID: ' . $contact_id . ', Task ID: ' . $task_id);
+            }
+        }
     }
 
     /**
@@ -908,6 +1109,35 @@ class CF7_Propstack_Integration_Handler
                 border-color: #dc3545;
                 color: #721c24;
             }
+
+            /* Task Configuration Section */
+            .cf7-propstack-task-config {
+                background: #f0f8ff;
+                border: 1px solid #0073aa;
+                border-radius: 4px;
+                padding: 15px;
+                margin: 15px 0;
+            }
+
+            .cf7-propstack-task-config legend {
+                font-weight: 600;
+                color: #0073aa;
+                padding: 0 10px;
+            }
+
+            .cf7-propstack-task-config .form-table th {
+                width: 200px;
+            }
+
+            .cf7-propstack-task-config select {
+                min-width: 250px;
+                max-width: 400px;
+            }
+
+            .cf7-propstack-task-config .button-secondary {
+                height: 30px;
+                vertical-align: top;
+            }
         </style>
     <?php
     }
@@ -1083,6 +1313,104 @@ class CF7_Propstack_Integration_Handler
                     });
                 });
 
+                // Handle refresh properties button
+                $(document).on("click", "#refresh_properties", function(e) {
+                    e.preventDefault();
+                    
+                    var button = $(this);
+                    var originalText = button.text();
+                    button.text("<?php echo esc_js(__('Refreshing...', 'cf7-propstack-integration')); ?>").prop("disabled", true);
+                    
+                    var nonce = $("#cf7_propstack_nonce").val();
+                    var ajaxUrl = $("#cf7_propstack_ajax_url").val();
+                    
+                    $.ajax({
+                        url: ajaxUrl,
+                        type: "POST",
+                        data: {
+                            action: "refresh_properties",
+                            nonce: nonce
+                        },
+                        success: function(response) {
+                            if (response.success && response.data.properties) {
+                                var select = $("#wpcf7-propstack-property-id");
+                                var selectedValue = select.val();
+                                
+                                // Clear existing options except the first one
+                                select.find('option:not(:first)').remove();
+                                
+                                // Add new options
+                                $.each(response.data.properties, function(index, property) {
+                                    var title = property.title || property.name || 'Property #' + property.id;
+                                    select.append('<option value="' + property.id + '">' + title + '</option>');
+                                });
+                                
+                                // Restore selected value if it still exists
+                                select.val(selectedValue);
+                                
+                                alert(response.data.message || "<?php echo esc_js(__('Properties refreshed successfully!', 'cf7-propstack-integration')); ?>");
+                            } else {
+                                alert(response.data || "<?php echo esc_js(__('Failed to refresh properties.', 'cf7-propstack-integration')); ?>");
+                            }
+                        },
+                        error: function() {
+                            alert("<?php echo esc_js(__('Error refreshing properties. Please try again.', 'cf7-propstack-integration')); ?>");
+                        },
+                        complete: function() {
+                            button.text(originalText).prop("disabled", false);
+                        }
+                    });
+                });
+
+                // Handle refresh client sources button
+                $(document).on("click", "#refresh_client_sources", function(e) {
+                    e.preventDefault();
+                    
+                    var button = $(this);
+                    var originalText = button.text();
+                    button.text("<?php echo esc_js(__('Refreshing...', 'cf7-propstack-integration')); ?>").prop("disabled", true);
+                    
+                    var nonce = $("#cf7_propstack_nonce").val();
+                    var ajaxUrl = $("#cf7_propstack_ajax_url").val();
+                    
+                    $.ajax({
+                        url: ajaxUrl,
+                        type: "POST",
+                        data: {
+                            action: "refresh_client_sources",
+                            nonce: nonce
+                        },
+                        success: function(response) {
+                            if (response.success && response.data.client_sources) {
+                                var select = $("#wpcf7-propstack-client-source-id");
+                                var selectedValue = select.val();
+                                
+                                // Clear existing options except the first one
+                                select.find('option:not(:first)').remove();
+                                
+                                // Add new options
+                                $.each(response.data.client_sources, function(index, source) {
+                                    var name = source.name || source.title || 'Source #' + source.id;
+                                    select.append('<option value="' + source.id + '">' + name + '</option>');
+                                });
+                                
+                                // Restore selected value if it still exists
+                                select.val(selectedValue);
+                                
+                                alert(response.data.message || "<?php echo esc_js(__('Client sources refreshed successfully!', 'cf7-propstack-integration')); ?>");
+                            } else {
+                                alert(response.data || "<?php echo esc_js(__('Failed to refresh client sources.', 'cf7-propstack-integration')); ?>");
+                            }
+                        },
+                        error: function() {
+                            alert("<?php echo esc_js(__('Error refreshing client sources. Please try again.', 'cf7-propstack-integration')); ?>");
+                        },
+                        complete: function() {
+                            button.text(originalText).prop("disabled", false);
+                        }
+                    });
+                });
+
                 console.log("CF7 Propstack: Event handlers set up successfully");
             });
         </script>
@@ -1166,5 +1494,51 @@ class CF7_Propstack_Integration_Handler
         }
 
         wp_send_json_success(__('Mapping deleted successfully.', 'cf7-propstack-integration'));
+    }
+
+    /**
+     * Refresh properties cache via AJAX
+     */
+    public function refresh_properties()
+    {
+        check_ajax_referer('cf7_propstack_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Unauthorized', 'cf7-propstack-integration'));
+        }
+
+        // Clear the cache
+        delete_transient('cf7_propstack_properties');
+
+        // Fetch fresh data
+        $properties = $this->get_cached_properties();
+
+        wp_send_json_success(array(
+            'properties' => $properties,
+            'message' => __('Properties refreshed successfully.', 'cf7-propstack-integration')
+        ));
+    }
+
+    /**
+     * Refresh client sources cache via AJAX
+     */
+    public function refresh_client_sources()
+    {
+        check_ajax_referer('cf7_propstack_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Unauthorized', 'cf7-propstack-integration'));
+        }
+
+        // Clear the cache
+        delete_transient('cf7_propstack_client_sources');
+
+        // Fetch fresh data
+        $client_sources = $this->get_cached_client_sources();
+
+        wp_send_json_success(array(
+            'client_sources' => $client_sources,
+            'message' => __('Client sources refreshed successfully.', 'cf7-propstack-integration')
+        ));
     }
 }

@@ -165,6 +165,54 @@ class CF7_Propstack_API
     }
 
     /**
+     * Get properties/units from Propstack
+     */
+    public function get_properties()
+    {
+        if (empty($this->api_key)) {
+            $this->log_error('API key not configured');
+            return array();
+        }
+
+        $endpoint = $this->api_url . '/units';
+
+        $response = $this->make_request('GET', $endpoint);
+
+        if ($response && is_array($response)) {
+            return $response;
+        }
+
+        return array();
+    }
+
+    /**
+     * Create a task in Propstack
+     */
+    public function create_task($task_data)
+    {
+        if (empty($this->api_key)) {
+            $this->log_error('API key not configured');
+            return false;
+        }
+
+        $endpoint = $this->api_url . '/tasks';
+
+        $request_data = array(
+            'task' => $task_data
+        );
+
+        $response = $this->make_request('POST', $endpoint, $request_data);
+
+        if ($response && isset($response['id'])) {
+            $this->log_success('Task created successfully with ID: ' . $response['id']);
+            return $response['id'];
+        }
+
+        $this->log_error('Failed to create task: ' . json_encode($response));
+        return false;
+    }
+
+    /**
      * Make HTTP request to Propstack API
      */
     private function make_request($method, $endpoint, $data = null)
