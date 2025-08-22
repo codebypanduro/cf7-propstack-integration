@@ -50,10 +50,10 @@ class CF7_Propstack_Integration_Handler
         add_action('wp_ajax_save_field_mapping', array($this, 'save_field_mapping'));
         add_action('wp_ajax_delete_field_mapping_by_fields', array($this, 'delete_field_mapping_by_fields'));
 
-        // Add AJAX handlers for refreshing properties and client sources
-        add_action('wp_ajax_refresh_properties', array($this, 'refresh_properties'));
+        // Add AJAX handlers for refreshing projects and client sources
+        add_action('wp_ajax_refresh_projects', array($this, 'refresh_projects'));
         add_action('wp_ajax_refresh_client_sources', array($this, 'refresh_client_sources'));
-        add_action('wp_ajax_test_properties_api', array($this, 'test_properties_api'));
+
         add_action('wp_ajax_clear_propstack_cache', array($this, 'clear_propstack_cache'));
 
         // Instead of admin_enqueue_scripts, use wpcf7_admin_footer to inject panel.js for the CF7 form editor
@@ -76,15 +76,12 @@ class CF7_Propstack_Integration_Handler
                 'errorDeleteText' => __('Error deleting mapping. Please try again.', 'cf7-propstack-integration'),
                 'noMappingsText' => __('No field mappings configured for this form.', 'cf7-propstack-integration'),
                 'refreshingText' => __('Refreshing...', 'cf7-propstack-integration'),
-                'testingText' => __('Testing...', 'cf7-propstack-integration'),
-                'propertiesRefreshedText' => __('Properties refreshed successfully!', 'cf7-propstack-integration'),
+                'projectsRefreshedText' => __('Projects refreshed successfully!', 'cf7-propstack-integration'),
                 'clientSourcesRefreshedText' => __('Client sources refreshed successfully!', 'cf7-propstack-integration'),
-                'failedRefreshPropertiesText' => __('Failed to refresh properties.', 'cf7-propstack-integration'),
+                'failedRefreshProjectsText' => __('Failed to refresh projects.', 'cf7-propstack-integration'),
                 'failedRefreshClientSourcesText' => __('Failed to refresh client sources.', 'cf7-propstack-integration'),
-                'testFailedText' => __('Test failed.', 'cf7-propstack-integration'),
                 'missingNonceText' => __('Missing nonce or AJAX URL. Please refresh the page.', 'cf7-propstack-integration'),
                 'errorRefreshText' => __('Error refreshing. Please try again.', 'cf7-propstack-integration'),
-                'errorTestText' => __('Error testing API. Please try again.', 'cf7-propstack-integration'),
             );
             echo '<script>window.cf7PropstackPanelL10n = ' . json_encode($l10n) . ';</script>';
         });
@@ -115,7 +112,7 @@ class CF7_Propstack_Integration_Handler
                 'enabled' => false,
                 'field_mappings' => array(),
                 'create_task' => false,
-                'property_id' => '',
+                'project_id' => '',
                 'client_source_id' => '',
             )
         );
@@ -169,22 +166,22 @@ class CF7_Propstack_Integration_Handler
         // Get Propstack fields
         $propstack_fields = $this->get_propstack_fields();
 
-        // Get properties for task creation dropdown
-        $properties = $this->get_cached_properties();
+        // Get projects for task creation dropdown
+        $projects = $this->get_cached_projects();
 
         // Get client sources for task creation dropdown
         $client_sources = $this->get_cached_client_sources();
 
         // Debug information for troubleshooting
         $debug_info = array(
-            'properties_count' => count($properties),
+            'projects_count' => count($projects),
             'client_sources_count' => count($client_sources),
             'api_key_configured' => $this->api->is_api_key_configured(),
         );
 
         // Display debug info as an admin notice for troubleshooting
         if (current_user_can('manage_options')) {
-            echo '<div class="notice notice-info" style="margin: 10px 0;"><p><strong>Debug Info:</strong> Properties: ' . count($properties) . ', Client Sources: ' . count($client_sources) . ', API Key: ' . ($this->api->is_api_key_configured() ? 'Configured' : 'Not Configured') . ' <button type="button" id="clear_propstack_cache" class="button button-secondary" style="margin-left: 10px;">Clear Cache</button></p></div>';
+            echo '<div class="notice notice-info" style="margin: 10px 0;"><p><strong>Debug Info:</strong> Projects: ' . count($projects) . ', Client Sources: ' . count($client_sources) . ', API Key: ' . ($this->api->is_api_key_configured() ? 'Configured' : 'Not Configured') . ' <button type="button" id="clear_propstack_cache" class="button button-secondary" style="margin-left: 10px;">Clear Cache</button></p></div>';
         }
 
         $description = sprintf(
@@ -253,32 +250,26 @@ class CF7_Propstack_Integration_Handler
                     </tr>
                     <tr>
                         <th scope="row">
-                            <?php echo esc_html(__('Property', 'cf7-propstack-integration')); ?>
+                            <?php echo esc_html(__('Project', 'cf7-propstack-integration')); ?>
                         </th>
                         <td>
-                            <select name="wpcf7-propstack[property_id]" id="wpcf7-propstack-property-id">
-                                <option value=""><?php echo esc_html(__('Select a property (optional)', 'cf7-propstack-integration')); ?></option>
-                                <?php if (empty($properties)): ?>
-                                    <option value="" disabled><?php echo esc_html(__('No properties found - check API connection', 'cf7-propstack-integration')); ?></option>
+                            <select name="wpcf7-propstack[project_id]" id="wpcf7-propstack-project-id">
+                                <option value=""><?php echo esc_html(__('Select a project (optional)', 'cf7-propstack-integration')); ?></option>
+                                <?php if (empty($projects)): ?>
+                                    <option value="" disabled><?php echo esc_html(__('No projects found - check API connection', 'cf7-propstack-integration')); ?></option>
                                 <?php else: ?>
-                                    <?php foreach ($properties as $property): ?>
-                                        <option value="<?php echo esc_attr($property['id']); ?>" <?php selected($prop['property_id'], $property['id']); ?>>
-                                            <?php echo esc_html($property['title'] ?? $property['name'] ?? 'Property #' . $property['id']); ?>
+                                    <?php foreach ($projects as $project): ?>
+                                        <option value="<?php echo esc_attr($project['id']); ?>" <?php selected($prop['project_id'], $project['id']); ?>>
+                                            <?php echo esc_html($project['title'] ?? $project['name'] ?? 'Project #' . $project['id']); ?>
                                         </option>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
                             </select>
-                            <button type="button" id="refresh_properties" class="button button-secondary" style="margin-left: 10px;">
+                            <button type="button" id="refresh_projects" class="button button-secondary" style="margin-left: 10px;">
                                 <?php echo esc_html(__('Refresh', 'cf7-propstack-integration')); ?>
                             </button>
-                            <button type="button" id="test_properties_api" class="button button-secondary" style="margin-left: 5px;">
-                                <?php echo esc_html(__('Test API', 'cf7-propstack-integration')); ?>
-                            </button>
-                            <button type="button" onclick="alert('JavaScript is working! Nonce: ' + jQuery('#cf7_propstack_nonce').val() + ', AJAX URL: ' + jQuery('#cf7_propstack_ajax_url').val()); console.log('Button test:', jQuery('#test_properties_api').length);" class="button button-secondary" style="margin-left: 5px;">
-                                <?php echo esc_html(__('Test JS', 'cf7-propstack-integration')); ?>
-                            </button>
                             <p class="description">
-                                <?php echo esc_html(__('Select a property to associate with the task (optional).', 'cf7-propstack-integration')); ?>
+                                <?php echo esc_html(__('Select a project to associate with the task (optional).', 'cf7-propstack-integration')); ?>
                             </p>
                         </td>
                     </tr>
@@ -651,49 +642,49 @@ class CF7_Propstack_Integration_Handler
     }
 
     /**
-     * Get cached properties or fetch from API
+     * Get cached projects or fetch from API
      */
-    private function get_cached_properties()
+    private function get_cached_projects()
     {
         // Check cache first
-        $cached_properties = get_transient('cf7_propstack_properties');
-        if ($cached_properties !== false) {
-            error_log('[CF7 Propstack] Using cached properties: ' . count($cached_properties) . ' properties');
-            return $cached_properties;
+        $cached_projects = get_transient('cf7_propstack_projects');
+        if ($cached_projects !== false) {
+            error_log('[CF7 Propstack] Using cached projects: ' . count($cached_projects) . ' projects');
+            return $cached_projects;
         }
 
-        error_log('[CF7 Propstack] No cached properties, fetching from API');
+        error_log('[CF7 Propstack] No cached projects, fetching from API');
 
         // Fetch from API if cache is empty
-        $properties = array();
+        $projects = array();
         if ($this->api) {
             try {
-                error_log('[CF7 Propstack] Calling API get_properties method');
-                $api_properties = $this->api->get_properties();
+                error_log('[CF7 Propstack] Calling API get_projects method');
+                $api_projects = $this->api->get_projects();
 
-                error_log('[CF7 Propstack] API properties result: ' . json_encode($api_properties));
+                error_log('[CF7 Propstack] API projects result: ' . json_encode($api_projects));
 
-                if (!empty($api_properties) && is_array($api_properties)) {
-                    $properties = $api_properties;
-                    error_log('[CF7 Propstack] Properties set successfully: ' . count($properties) . ' properties');
+                if (!empty($api_projects) && is_array($api_projects)) {
+                    $projects = $api_projects;
+                    error_log('[CF7 Propstack] Projects set successfully: ' . count($projects) . ' projects');
                 } else {
-                    error_log('[CF7 Propstack] API properties was empty or not an array');
+                    error_log('[CF7 Propstack] API projects was empty or not an array');
                 }
 
                 // Cache the results for 1 hour
-                set_transient('cf7_propstack_properties', $properties, HOUR_IN_SECONDS);
-                error_log('[CF7 Propstack] Cached properties for 1 hour');
+                set_transient('cf7_propstack_projects', $projects, HOUR_IN_SECONDS);
+                error_log('[CF7 Propstack] Cached projects for 1 hour');
             } catch (Exception $e) {
-                error_log('[CF7 Propstack] Exception fetching properties: ' . $e->getMessage());
+                error_log('[CF7 Propstack] Exception fetching projects: ' . $e->getMessage());
                 // Cache empty array on error to prevent repeated API calls
-                set_transient('cf7_propstack_properties', array(), 5 * MINUTE_IN_SECONDS);
+                set_transient('cf7_propstack_projects', array(), 5 * MINUTE_IN_SECONDS);
             }
         } else {
             error_log('[CF7 Propstack] API object is null');
         }
 
-        error_log('[CF7 Propstack] Returning properties: ' . count($properties) . ' properties');
-        return $properties;
+        error_log('[CF7 Propstack] Returning projects: ' . count($projects) . ' projects');
+        return $projects;
     }
 
     /**
@@ -743,7 +734,7 @@ class CF7_Propstack_Integration_Handler
                 'enabled' => false,
                 'field_mappings' => array(),
                 'create_task' => false,
-                'property_id' => '',
+                'project_id' => '',
                 'client_source_id' => '',
             )
         );
@@ -853,9 +844,9 @@ class CF7_Propstack_Integration_Handler
             'client_ids' => array(intval($contact_id))
         );
 
-        // Add property ID if configured
-        if (!empty($propstack_prop['property_id'])) {
-            $task_data['property_ids'] = array(intval($propstack_prop['property_id']));
+        // Add project ID if configured
+        if (!empty($propstack_prop['project_id'])) {
+            $task_data['project_ids'] = array(intval($propstack_prop['project_id']));
         }
 
         // Add client source ID if configured
@@ -1282,9 +1273,9 @@ class CF7_Propstack_Integration_Handler
     }
 
     /**
-     * Refresh properties cache via AJAX
+     * Refresh projects cache via AJAX
      */
-    public function refresh_properties()
+    public function refresh_projects()
     {
         check_ajax_referer('cf7_propstack_nonce', 'nonce');
 
@@ -1293,14 +1284,14 @@ class CF7_Propstack_Integration_Handler
         }
 
         // Clear the cache
-        delete_transient('cf7_propstack_properties');
+        delete_transient('cf7_propstack_projects');
 
         // Fetch fresh data
-        $properties = $this->get_cached_properties();
+        $projects = $this->get_cached_projects();
 
         wp_send_json_success(array(
-            'properties' => $properties,
-            'message' => __('Properties refreshed successfully.', 'cf7-propstack-integration')
+            'projects' => $projects,
+            'message' => __('Projects refreshed successfully.', 'cf7-propstack-integration')
         ));
     }
 
@@ -1327,37 +1318,7 @@ class CF7_Propstack_Integration_Handler
         ));
     }
 
-    /**
-     * Test properties API via AJAX (for debugging)
-     */
-    public function test_properties_api()
-    {
-        check_ajax_referer('cf7_propstack_nonce', 'nonce');
 
-        if (!current_user_can('manage_options')) {
-            wp_die(__('Unauthorized', 'cf7-propstack-integration'));
-        }
-
-        // Clear cache first to force fresh API call
-        delete_transient('cf7_propstack_properties');
-
-        // Test API call directly
-        $api_response = $this->api->get_properties();
-        
-        // Get raw debug information
-        $debug_info = array(
-            'api_key_configured' => $this->api->is_api_key_configured(),
-            'api_response' => $api_response,
-            'response_type' => gettype($api_response),
-            'response_count' => is_array($api_response) ? count($api_response) : 0,
-            'cache_cleared' => true,
-        );
-
-        wp_send_json_success(array(
-            'debug_info' => $debug_info,
-            'message' => __('API test completed. Check the debug information.', 'cf7-propstack-integration')
-        ));
-    }
 
     /**
      * Clear Propstack cache via AJAX
@@ -1371,7 +1332,7 @@ class CF7_Propstack_Integration_Handler
         }
 
         // Clear all Propstack-related transients
-        delete_transient('cf7_propstack_properties');
+        delete_transient('cf7_propstack_projects');
         delete_transient('cf7_propstack_client_sources');
         delete_transient('cf7_propstack_custom_fields');
 

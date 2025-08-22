@@ -222,6 +222,41 @@ class CF7_Propstack_API
     }
 
     /**
+     * Get projects from Propstack
+     */
+    public function get_projects()
+    {
+        if (empty($this->api_key)) {
+            $this->debug_log('API key not configured for projects');
+            return array();
+        }
+
+        $endpoint = $this->api_url . '/projects';
+        $this->debug_log('Attempting to fetch projects from: ' . $endpoint);
+        
+        $response = $this->make_request('GET', $endpoint);
+        
+        $this->debug_log('Projects API response: ' . json_encode($response));
+
+        if ($response) {
+            // Handle different response formats
+            if (is_array($response)) {
+                $this->debug_log('Projects fetched successfully: ' . count($response) . ' projects');
+                return $response;
+            } elseif (isset($response['data']) && is_array($response['data'])) {
+                $this->debug_log('Projects fetched from data field: ' . count($response['data']) . ' projects');
+                return $response['data'];
+            } elseif (isset($response['projects']) && is_array($response['projects'])) {
+                $this->debug_log('Projects fetched from projects field: ' . count($response['projects']) . ' projects');
+                return $response['projects'];
+            }
+        }
+
+        $this->debug_log('Projects response was not in expected format or was empty');
+        return array();
+    }
+
+    /**
      * Create a task in Propstack
      */
     public function create_task($task_data)
