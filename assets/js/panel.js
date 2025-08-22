@@ -2,7 +2,17 @@ console.log("CF7 Propstack panel.js loaded");
 
 jQuery(document).ready(function ($) {
   // Only run on the CF7 Propstack panel
-  if (!document.getElementById("cf7_propstack_nonce")) return;
+  if (!document.getElementById("cf7_propstack_nonce")) {
+    console.log("CF7 Propstack: No nonce found, exiting");
+    return;
+  }
+
+  console.log("CF7 Propstack: panel.js initialized successfully");
+  console.log(
+    "CF7 Propstack: Refresh buttons exist:",
+    $("#refresh_projects").length,
+    $("#refresh_client_sources").length
+  );
 
   // Function to update CF7 field dropdown to disable already mapped fields
   function updateCF7FieldDropdown() {
@@ -226,4 +236,219 @@ jQuery(document).ready(function ($) {
       });
     }, 3000);
   }
+
+  // Handle refresh projects button
+  $(document).on("click", "#refresh_projects", function (e) {
+    console.log("CF7 Propstack: Refresh projects button clicked");
+    e.preventDefault();
+
+    var button = $(this);
+    var originalText = button.text();
+    button
+      .text(window.cf7PropstackPanelL10n?.refreshingText || "Refreshing...")
+      .prop("disabled", true);
+
+    var nonce = $("#cf7_propstack_nonce").val();
+    var ajaxUrl = $("#cf7_propstack_ajax_url").val();
+
+    if (!nonce || !ajaxUrl) {
+      alert(
+        window.cf7PropstackPanelL10n?.missingNonceText ||
+          "Missing nonce or AJAX URL. Please refresh the page."
+      );
+      button.text(originalText).prop("disabled", false);
+      return;
+    }
+
+    $.ajax({
+      url: ajaxUrl,
+      type: "POST",
+      dataType: "json",
+      data: {
+        action: "refresh_projects",
+        nonce: nonce,
+      },
+      success: function (response) {
+        console.log("CF7 Propstack: Refresh projects success:", response);
+        if (response.success && response.data.projects) {
+          var select = $("#wpcf7-propstack-project-id");
+          var selectedValue = select.val();
+
+          // Clear existing options except the first one
+          select.find("option:not(:first)").remove();
+
+          // Add new options
+          $.each(response.data.projects, function (index, project) {
+            var title =
+              project.title || project.name || "Project #" + project.id;
+            select.append(
+              '<option value="' + project.id + '">' + title + "</option>"
+            );
+          });
+
+          // Restore selected value if it still exists
+          select.val(selectedValue);
+
+          showMessage(
+            response.data.message ||
+              window.cf7PropstackPanelL10n?.projectsRefreshedText ||
+              "Projects refreshed successfully!",
+            "success"
+          );
+        } else {
+          alert(
+            response.data ||
+              window.cf7PropstackPanelL10n?.failedRefreshProjectsText ||
+              "Failed to refresh projects."
+          );
+        }
+      },
+      error: function (xhr, status, error) {
+        console.log("CF7 Propstack: Refresh projects error:", status, error);
+        alert(
+          window.cf7PropstackPanelL10n?.errorRefreshText ||
+            "Error refreshing projects. Please try again."
+        );
+      },
+      complete: function () {
+        button.text(originalText).prop("disabled", false);
+      },
+    });
+  });
+
+  // Handle refresh client sources button
+  $(document).on("click", "#refresh_client_sources", function (e) {
+    console.log("CF7 Propstack: Refresh client sources button clicked");
+    e.preventDefault();
+
+    var button = $(this);
+    var originalText = button.text();
+    button
+      .text(window.cf7PropstackPanelL10n?.refreshingText || "Refreshing...")
+      .prop("disabled", true);
+
+    var nonce = $("#cf7_propstack_nonce").val();
+    var ajaxUrl = $("#cf7_propstack_ajax_url").val();
+
+    if (!nonce || !ajaxUrl) {
+      alert(
+        window.cf7PropstackPanelL10n?.missingNonceText ||
+          "Missing nonce or AJAX URL. Please refresh the page."
+      );
+      button.text(originalText).prop("disabled", false);
+      return;
+    }
+
+    $.ajax({
+      url: ajaxUrl,
+      type: "POST",
+      dataType: "json",
+      data: {
+        action: "refresh_client_sources",
+        nonce: nonce,
+      },
+      success: function (response) {
+        console.log("CF7 Propstack: Refresh client sources success:", response);
+        if (response.success && response.data.client_sources) {
+          var select = $("#wpcf7-propstack-client-source-id");
+          var selectedValue = select.val();
+
+          // Clear existing options except the first one
+          select.find("option:not(:first)").remove();
+
+          // Add new options
+          $.each(response.data.client_sources, function (index, source) {
+            var name = source.name || source.title || "Source #" + source.id;
+            select.append(
+              '<option value="' + source.id + '">' + name + "</option>"
+            );
+          });
+
+          // Restore selected value if it still exists
+          select.val(selectedValue);
+
+          showMessage(
+            response.data.message ||
+              window.cf7PropstackPanelL10n?.clientSourcesRefreshedText ||
+              "Client sources refreshed successfully!",
+            "success"
+          );
+        } else {
+          alert(
+            response.data ||
+              window.cf7PropstackPanelL10n?.failedRefreshClientSourcesText ||
+              "Failed to refresh client sources."
+          );
+        }
+      },
+      error: function (xhr, status, error) {
+        console.log(
+          "CF7 Propstack: Refresh client sources error:",
+          status,
+          error
+        );
+        alert(
+          window.cf7PropstackPanelL10n?.errorRefreshText ||
+            "Error refreshing client sources. Please try again."
+        );
+      },
+      complete: function () {
+        button.text(originalText).prop("disabled", false);
+      },
+    });
+  });
+
+  // Handle clear cache button
+  $(document).on("click", "#clear_propstack_cache", function (e) {
+    console.log("CF7 Propstack: Clear cache button clicked");
+    e.preventDefault();
+
+    var button = $(this);
+    var originalText = button.text();
+    button.text("Clearing...").prop("disabled", true);
+
+    var nonce = $("#cf7_propstack_nonce").val();
+    var ajaxUrl = $("#cf7_propstack_ajax_url").val();
+
+    if (!nonce || !ajaxUrl) {
+      alert(
+        window.cf7PropstackPanelL10n?.missingNonceText ||
+          "Missing nonce or AJAX URL. Please refresh the page."
+      );
+      button.text(originalText).prop("disabled", false);
+      return;
+    }
+
+    $.ajax({
+      url: ajaxUrl,
+      type: "POST",
+      dataType: "json",
+      data: {
+        action: "clear_propstack_cache",
+        nonce: nonce,
+      },
+      success: function (response) {
+        console.log("CF7 Propstack: Clear cache success:", response);
+        if (response.success) {
+          showMessage(
+            response.data.message || "Cache cleared successfully!",
+            "success"
+          );
+          // Reload the page to show fresh data
+          setTimeout(function () {
+            location.reload();
+          }, 1000);
+        } else {
+          alert(response.data || "Failed to clear cache.");
+        }
+      },
+      error: function (xhr, status, error) {
+        console.log("CF7 Propstack: Clear cache error:", status, error);
+        alert("Error clearing cache. Please try again.");
+      },
+      complete: function () {
+        button.text(originalText).prop("disabled", false);
+      },
+    });
+  });
 });

@@ -25,6 +25,10 @@ class CF7_Propstack_API
         $this->api_key = isset($options['api_key']) ? $options['api_key'] : '';
         $this->api_url = 'https://api.propstack.de/v1';
         $this->debug_mode = isset($options['debug_mode']) ? $options['debug_mode'] : false;
+        
+        // Debug log for troubleshooting
+        error_log('[CF7 Propstack] API Constructor - API Key configured: ' . (!empty($this->api_key) ? 'Yes' : 'No'));
+        error_log('[CF7 Propstack] API Constructor - Debug mode: ' . ($this->debug_mode ? 'Yes' : 'No'));
     }
 
     /**
@@ -165,6 +169,121 @@ class CF7_Propstack_API
     }
 
     /**
+     * Get properties/units from Propstack
+     */
+    public function get_properties()
+    {
+        if (empty($this->api_key)) {
+            $this->debug_log('API key not configured for properties');
+            return array();
+        }
+
+        // Try the datadump endpoint first, then fallback to units
+        $endpoints = array(
+            $this->api_url . '/datadump/properties',
+            $this->api_url . '/units',
+            $this->api_url . '/properties'
+        );
+
+        $response = null;
+        $successful_endpoint = null;
+
+        foreach ($endpoints as $endpoint) {
+            $this->debug_log('Attempting to fetch properties from: ' . $endpoint);
+            $response = $this->make_request('GET', $endpoint);
+            
+            if ($response) {
+                $successful_endpoint = $endpoint;
+                $this->debug_log('Successfully got response from: ' . $endpoint);
+                break;
+            } else {
+                $this->debug_log('No response from: ' . $endpoint);
+            }
+        }
+
+        $this->debug_log('Properties API response: ' . json_encode($response));
+
+        if ($response) {
+            // Handle different response formats
+            if (is_array($response)) {
+                $this->debug_log('Properties fetched successfully: ' . count($response) . ' properties');
+                return $response;
+            } elseif (isset($response['data']) && is_array($response['data'])) {
+                $this->debug_log('Properties fetched from data field: ' . count($response['data']) . ' properties');
+                return $response['data'];
+            } elseif (isset($response['units']) && is_array($response['units'])) {
+                $this->debug_log('Properties fetched from units field: ' . count($response['units']) . ' properties');
+                return $response['units'];
+            }
+        }
+
+        $this->debug_log('Properties response was not in expected format or was empty');
+        return array();
+    }
+
+    /**
+     * Get projects from Propstack
+     */
+    public function get_projects()
+    {
+        if (empty($this->api_key)) {
+            $this->debug_log('API key not configured for projects');
+            return array();
+        }
+
+        $endpoint = $this->api_url . '/projects';
+        $this->debug_log('Attempting to fetch projects from: ' . $endpoint);
+        
+        $response = $this->make_request('GET', $endpoint);
+        
+        $this->debug_log('Projects API response: ' . json_encode($response));
+
+        if ($response) {
+            // Handle different response formats
+            if (is_array($response)) {
+                $this->debug_log('Projects fetched successfully: ' . count($response) . ' projects');
+                return $response;
+            } elseif (isset($response['data']) && is_array($response['data'])) {
+                $this->debug_log('Projects fetched from data field: ' . count($response['data']) . ' projects');
+                return $response['data'];
+            } elseif (isset($response['projects']) && is_array($response['projects'])) {
+                $this->debug_log('Projects fetched from projects field: ' . count($response['projects']) . ' projects');
+                return $response['projects'];
+            }
+        }
+
+        $this->debug_log('Projects response was not in expected format or was empty');
+        return array();
+    }
+
+    /**
+     * Create a task in Propstack
+     */
+    public function create_task($task_data)
+    {
+        if (empty($this->api_key)) {
+            $this->log_error('API key not configured');
+            return false;
+        }
+
+        $endpoint = $this->api_url . '/tasks';
+
+        $request_data = array(
+            'task' => $task_data
+        );
+
+        $response = $this->make_request('POST', $endpoint, $request_data);
+
+        if ($response && isset($response['id'])) {
+            $this->log_success('Task created successfully with ID: ' . $response['id']);
+            return $response['id'];
+        }
+
+        $this->log_error('Failed to create task: ' . json_encode($response));
+        return false;
+    }
+
+    /**
      * Make HTTP request to Propstack API
      */
     private function make_request($method, $endpoint, $data = null)
@@ -264,6 +383,22 @@ class CF7_Propstack_API
         }
 
         error_log('[CF7 Propstack] SUCCESS: ' . $message);
+    }
+
+    /**
+     * Debug log messages (always logs regardless of debug mode)
+     */
+    private function debug_log($message)
+    {
+        error_log('[CF7 Propstack] DEBUG: ' . $message);
+    }
+
+    /**
+     * Check if API key is configured
+     */
+    public function is_api_key_configured()
+    {
+        return !empty($this->api_key);
     }
 
     /**
