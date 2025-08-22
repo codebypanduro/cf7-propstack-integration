@@ -53,6 +53,7 @@ class CF7_Propstack_Integration_Handler
         // Add AJAX handlers for refreshing properties and client sources
         add_action('wp_ajax_refresh_properties', array($this, 'refresh_properties'));
         add_action('wp_ajax_refresh_client_sources', array($this, 'refresh_client_sources'));
+        add_action('wp_ajax_test_properties_api', array($this, 'test_properties_api'));
 
         // Instead of admin_enqueue_scripts, use wpcf7_admin_footer to inject panel.js for the CF7 form editor
         add_action('wpcf7_admin_footer', function ($post) {
@@ -163,6 +164,18 @@ class CF7_Propstack_Integration_Handler
         // Get client sources for task creation dropdown
         $client_sources = $this->get_cached_client_sources();
 
+        // Debug information for troubleshooting
+        $debug_info = array(
+            'properties_count' => count($properties),
+            'client_sources_count' => count($client_sources),
+            'api_key_configured' => $this->api->is_api_key_configured(),
+        );
+
+        // Display debug info as an admin notice for troubleshooting
+        if (current_user_can('manage_options')) {
+            echo '<div class="notice notice-info" style="margin: 10px 0;"><p><strong>Debug Info:</strong> Properties: ' . count($properties) . ', Client Sources: ' . count($client_sources) . ', API Key: ' . ($this->api->is_api_key_configured() ? 'Configured' : 'Not Configured') . '</p></div>';
+        }
+
         $description = sprintf(
             esc_html(
                 /* translators: %s: link labeled 'Propstack integration' */
@@ -234,14 +247,21 @@ class CF7_Propstack_Integration_Handler
                         <td>
                             <select name="wpcf7-propstack[property_id]" id="wpcf7-propstack-property-id">
                                 <option value=""><?php echo esc_html(__('Select a property (optional)', 'cf7-propstack-integration')); ?></option>
-                                <?php foreach ($properties as $property): ?>
-                                    <option value="<?php echo esc_attr($property['id']); ?>" <?php selected($prop['property_id'], $property['id']); ?>>
-                                        <?php echo esc_html($property['title'] ?? $property['name'] ?? 'Property #' . $property['id']); ?>
-                                    </option>
-                                <?php endforeach; ?>
+                                <?php if (empty($properties)): ?>
+                                    <option value="" disabled><?php echo esc_html(__('No properties found - check API connection', 'cf7-propstack-integration')); ?></option>
+                                <?php else: ?>
+                                    <?php foreach ($properties as $property): ?>
+                                        <option value="<?php echo esc_attr($property['id']); ?>" <?php selected($prop['property_id'], $property['id']); ?>>
+                                            <?php echo esc_html($property['title'] ?? $property['name'] ?? 'Property #' . $property['id']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
                             </select>
                             <button type="button" id="refresh_properties" class="button button-secondary" style="margin-left: 10px;">
                                 <?php echo esc_html(__('Refresh', 'cf7-propstack-integration')); ?>
+                            </button>
+                            <button type="button" id="test_properties_api" class="button button-secondary" style="margin-left: 5px;">
+                                <?php echo esc_html(__('Test API', 'cf7-propstack-integration')); ?>
                             </button>
                             <p class="description">
                                 <?php echo esc_html(__('Select a property to associate with the task (optional).', 'cf7-propstack-integration')); ?>
@@ -255,11 +275,15 @@ class CF7_Propstack_Integration_Handler
                         <td>
                             <select name="wpcf7-propstack[client_source_id]" id="wpcf7-propstack-client-source-id">
                                 <option value=""><?php echo esc_html(__('Select a client source (optional)', 'cf7-propstack-integration')); ?></option>
-                                <?php foreach ($client_sources as $source): ?>
-                                    <option value="<?php echo esc_attr($source['id']); ?>" <?php selected($prop['client_source_id'], $source['id']); ?>>
-                                        <?php echo esc_html($source['name'] ?? $source['title'] ?? 'Source #' . $source['id']); ?>
-                                    </option>
-                                <?php endforeach; ?>
+                                <?php if (empty($client_sources)): ?>
+                                    <option value="" disabled><?php echo esc_html(__('No client sources found - check API connection', 'cf7-propstack-integration')); ?></option>
+                                <?php else: ?>
+                                    <?php foreach ($client_sources as $source): ?>
+                                        <option value="<?php echo esc_attr($source['id']); ?>" <?php selected($prop['client_source_id'], $source['id']); ?>>
+                                            <?php echo esc_html($source['name'] ?? $source['title'] ?? 'Source #' . $source['id']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
                             </select>
                             <button type="button" id="refresh_client_sources" class="button button-secondary" style="margin-left: 10px;">
                                 <?php echo esc_html(__('Refresh', 'cf7-propstack-integration')); ?>
@@ -620,27 +644,41 @@ class CF7_Propstack_Integration_Handler
         // Check cache first
         $cached_properties = get_transient('cf7_propstack_properties');
         if ($cached_properties !== false) {
+            error_log('[CF7 Propstack] Using cached properties: ' . count($cached_properties) . ' properties');
             return $cached_properties;
         }
+
+        error_log('[CF7 Propstack] No cached properties, fetching from API');
 
         // Fetch from API if cache is empty
         $properties = array();
         if ($this->api) {
             try {
+                error_log('[CF7 Propstack] Calling API get_properties method');
                 $api_properties = $this->api->get_properties();
+
+                error_log('[CF7 Propstack] API properties result: ' . json_encode($api_properties));
 
                 if (!empty($api_properties) && is_array($api_properties)) {
                     $properties = $api_properties;
+                    error_log('[CF7 Propstack] Properties set successfully: ' . count($properties) . ' properties');
+                } else {
+                    error_log('[CF7 Propstack] API properties was empty or not an array');
                 }
 
                 // Cache the results for 1 hour
                 set_transient('cf7_propstack_properties', $properties, HOUR_IN_SECONDS);
+                error_log('[CF7 Propstack] Cached properties for 1 hour');
             } catch (Exception $e) {
+                error_log('[CF7 Propstack] Exception fetching properties: ' . $e->getMessage());
                 // Cache empty array on error to prevent repeated API calls
                 set_transient('cf7_propstack_properties', array(), 5 * MINUTE_IN_SECONDS);
             }
+        } else {
+            error_log('[CF7 Propstack] API object is null');
         }
 
+        error_log('[CF7 Propstack] Returning properties: ' . count($properties) . ' properties');
         return $properties;
     }
 
@@ -1411,6 +1449,47 @@ class CF7_Propstack_Integration_Handler
                     });
                 });
 
+                // Handle test properties API button
+                $(document).on("click", "#test_properties_api", function(e) {
+                    e.preventDefault();
+                    
+                    var button = $(this);
+                    var originalText = button.text();
+                    button.text("<?php echo esc_js(__('Testing...', 'cf7-propstack-integration')); ?>").prop("disabled", true);
+                    
+                    var nonce = $("#cf7_propstack_nonce").val();
+                    var ajaxUrl = $("#cf7_propstack_ajax_url").val();
+                    
+                    $.ajax({
+                        url: ajaxUrl,
+                        type: "POST",
+                        data: {
+                            action: "test_properties_api",
+                            nonce: nonce
+                        },
+                        success: function(response) {
+                            if (response.success && response.data.debug_info) {
+                                var info = response.data.debug_info;
+                                var message = "API Test Results:\n\n";
+                                message += "API Key Configured: " + (info.api_key_configured ? "Yes" : "No") + "\n";
+                                message += "Response Type: " + info.response_type + "\n";
+                                message += "Response Count: " + info.response_count + "\n";
+                                message += "Raw Response: " + JSON.stringify(info.api_response, null, 2);
+                                
+                                alert(message);
+                            } else {
+                                alert(response.data || "<?php echo esc_js(__('Test failed.', 'cf7-propstack-integration')); ?>");
+                            }
+                        },
+                        error: function() {
+                            alert("<?php echo esc_js(__('Error testing API. Please try again.', 'cf7-propstack-integration')); ?>");
+                        },
+                        complete: function() {
+                            button.text(originalText).prop("disabled", false);
+                        }
+                    });
+                });
+
                 console.log("CF7 Propstack: Event handlers set up successfully");
             });
         </script>
@@ -1539,6 +1618,34 @@ class CF7_Propstack_Integration_Handler
         wp_send_json_success(array(
             'client_sources' => $client_sources,
             'message' => __('Client sources refreshed successfully.', 'cf7-propstack-integration')
+        ));
+    }
+
+    /**
+     * Test properties API via AJAX (for debugging)
+     */
+    public function test_properties_api()
+    {
+        check_ajax_referer('cf7_propstack_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Unauthorized', 'cf7-propstack-integration'));
+        }
+
+        // Test API call directly
+        $api_response = $this->api->get_properties();
+        
+        // Get raw debug information
+        $debug_info = array(
+            'api_key_configured' => $this->api->is_api_key_configured(),
+            'api_response' => $api_response,
+            'response_type' => gettype($api_response),
+            'response_count' => is_array($api_response) ? count($api_response) : 0,
+        );
+
+        wp_send_json_success(array(
+            'debug_info' => $debug_info,
+            'message' => __('API test completed. Check the debug information.', 'cf7-propstack-integration')
         ));
     }
 }
