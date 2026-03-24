@@ -71,6 +71,14 @@ class CF7_Propstack_Admin
             'cf7_propstack_settings',
             'cf7_propstack_general'
         );
+
+        add_settings_field(
+            'page_url_custom_field',
+            __('Page URL Custom Field', 'cf7-propstack-integration'),
+            array($this, 'page_url_custom_field_callback'),
+            'cf7_propstack_settings',
+            'cf7_propstack_general'
+        );
     }
 
     /**
@@ -82,6 +90,7 @@ class CF7_Propstack_Admin
 
         $sanitized['api_key'] = sanitize_text_field($input['api_key']);
         $sanitized['debug_mode'] = isset($input['debug_mode']) ? true : false;
+        $sanitized['page_url_custom_field'] = isset($input['page_url_custom_field']) ? sanitize_text_field($input['page_url_custom_field']) : '';
 
         return $sanitized;
     }
@@ -117,6 +126,27 @@ class CF7_Propstack_Admin
     ?>
         <input type="checkbox" id="debug_mode" name="cf7_propstack_options[debug_mode]" <?php checked($debug_mode); ?> />
         <label for="debug_mode"><?php _e('Enable debug mode for logging API requests', 'cf7-propstack-integration'); ?></label>
+    <?php
+    }
+
+    /**
+     * Page URL custom field callback
+     */
+    public function page_url_custom_field_callback()
+    {
+        $options = get_option('cf7_propstack_options');
+        $selected = isset($options['page_url_custom_field']) ? $options['page_url_custom_field'] : '';
+        $custom_fields = $this->get_cached_custom_fields();
+    ?>
+        <select id="page_url_custom_field" name="cf7_propstack_options[page_url_custom_field]">
+            <option value=""><?php _e('— Disabled —', 'cf7-propstack-integration'); ?></option>
+            <?php foreach ($custom_fields as $field_key => $field_label): ?>
+                <option value="<?php echo esc_attr($field_key); ?>" <?php selected($selected, $field_key); ?>>
+                    <?php echo esc_html($field_label); ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <p class="description"><?php _e('Select a Propstack custom field to automatically store the page URL where the form was submitted.', 'cf7-propstack-integration'); ?></p>
     <?php
     }
 

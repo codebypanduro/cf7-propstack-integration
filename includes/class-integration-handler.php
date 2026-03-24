@@ -777,6 +777,23 @@ class CF7_Propstack_Integration_Handler
             return;
         }
 
+        // Inject page URL into configured custom field
+        $options = get_option('cf7_propstack_options');
+        if (!empty($options['page_url_custom_field']) && !empty($_SERVER['HTTP_REFERER'])) {
+            $page_url = esc_url_raw($_SERVER['HTTP_REFERER']);
+            $custom_field_key = $options['page_url_custom_field'];
+            // Strip 'custom_' prefix for the API payload
+            if (strpos($custom_field_key, 'custom_') === 0) {
+                $custom_field_name = substr($custom_field_key, 7);
+            } else {
+                $custom_field_name = $custom_field_key;
+            }
+            if (!isset($contact_data['custom_fields'])) {
+                $contact_data['custom_fields'] = array();
+            }
+            $contact_data['custom_fields'][$custom_field_name] = $page_url;
+        }
+
         // Validate contact data
         $validation_errors = $this->api->validate_contact_data($contact_data);
         if (!empty($validation_errors)) {
